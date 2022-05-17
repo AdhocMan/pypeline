@@ -33,6 +33,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake/modules)
 # Options
 option(BLUEBILD_BUILD_TESTS "Build tests" OFF)
 option(BLUEBILD_INSTALL "Enable CMake install commands" ON)
+option(BLUEBILD_PYBIND11_DOWNLOAD "Download pybind11 instead of looking for installation" OFF)
 
 set(BLUEBILD_GPU "OFF" CACHE STRING "GPU backend")
 set_property(CACHE BLUEBILD_GPU PROPERTY STRINGS
@@ -124,6 +125,22 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 	list(APPEND BLUEBILD_EXTERNAL_LIBS CUFINUFFT::cufinufft)
 endif()
 
+
+set(Python_FIND_FRAMEWORK LAST) # Prefer Brew/Conda to Apple framework python
+find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
+
+if (BLUEBILD_PYBIND11_DOWNLOAD)
+	include(FetchContent)
+	FetchContent_Declare(
+		pybind11
+		GIT_REPOSITORY https://github.com/pybind/pybind11.git
+		GIT_TAG        v2.9.2
+	)
+	FetchContent_MakeAvailable(pybind11)
+else()
+	find_package(pybind11 CONFIG REQUIRED)
+endif()
+
 # check if C api is available for blas and lapack
 # include(CheckCXXSymbolExists)
 set(CMAKE_REQUIRED_LIBRARIES ${BLUEBILD_EXTERNAL_LIBS})
@@ -146,6 +163,7 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 # All include dirs and definitions must be set before sub-directory is added!
 #############################################################################
 add_subdirectory(src)
+add_subdirectory(python)
 
 # add tests for developement
 if(BLUEBILD_BUILD_TESTS)
