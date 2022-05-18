@@ -23,7 +23,7 @@ else()
 endif()
 
 
-pybind11_add_module(pybluebild bluebild_module.cpp)
+pybind11_add_module(pybluebild pybluebild.cpp)
 target_link_libraries(pybluebild PRIVATE bluebild)
 
 if(BLUEBILD_INSTALL STREQUAL "PYTHON")
