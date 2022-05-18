@@ -213,11 +213,15 @@ struct Nufft3d3Dispatcher {
 
 } // namespace
 
-PYBIND11_MODULE(bluebild, m) {
+PYBIND11_MODULE(pybluebild, m) {
   m.doc() = R"pbdoc(
         Bluebild
     )pbdoc";
+#ifdef BLUEBILD_VERSION
+  m.attr("__version__") = BLUEBILD_VERSION;
+#else
   m.attr("__version__") = "dev";
+#endif
 
   py::enum_<BluebildProcessingUnit>(m, "ProcessingUnit")
       .value("AUTO", BLUEBILD_PU_AUTO)
