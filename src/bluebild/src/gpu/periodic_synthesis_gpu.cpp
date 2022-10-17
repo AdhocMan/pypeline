@@ -1,6 +1,7 @@
 #include <complex>
 #include <functional>
 #include <memory>
+#include <cstring>
 
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
