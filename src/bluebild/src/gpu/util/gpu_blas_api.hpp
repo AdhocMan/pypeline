@@ -305,11 +305,11 @@ inline auto gemm_batched(HandleType handle,
 #else
   return rocblas_zgemm_batched(
       handle, transa, transb, m, n, k,
-      reinterpret_cast<const rocblas_float_complex *>(alpha),
-      reinterpret_cast<const rocblas_float_complex *const *>(A), lda,
-      reinterpret_cast<const rocblas_float_complex *const *>(B), ldb,
-      reinterpret_cast<const rocblas_float_complex *>(beta),
-      reinterpret_cast<rocblas_float_complex *const *>(C), ldc, batchCount);
+      reinterpret_cast<const rocblas_double_complex *>(alpha),
+      reinterpret_cast<const rocblas_double_complex *const *>(A), lda,
+      reinterpret_cast<const rocblas_double_complex *const *>(B), ldb,
+      reinterpret_cast<const rocblas_double_complex *>(beta),
+      reinterpret_cast<rocblas_double_complex *const *>(C), ldc, batchCount);
 #endif  // BLUEBILD_CUDA
 }
 
