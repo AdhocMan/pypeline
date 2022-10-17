@@ -52,18 +52,29 @@ template auto reverse_1_gpu<float>(gpu::StreamType stream, int n, float* x) -> v
 
 template auto reverse_1_gpu<double>(gpu::StreamType stream, int n, double* x) -> void;
 
-template auto reverse_1_gpu<cuComplex>(gpu::StreamType stream, int n, cuComplex* x) -> void;
-
-template auto reverse_1_gpu<cuDoubleComplex>(gpu::StreamType stream, int n, cuDoubleComplex* x)
+template auto reverse_1_gpu<gpu::ComplexType<float>>(gpu::StreamType stream,
+                                                     int n,
+                                                     gpu::ComplexType<float> *x)
     -> void;
 
-template auto reverse_2_gpu<float>(gpu::StreamType stream, int m, int n, float* x, int ld) -> void;
+template auto
+reverse_1_gpu<gpu::ComplexType<double>>(gpu::StreamType stream, int n,
+                                        gpu::ComplexType<double> *x) -> void;
 
-template auto reverse_2_gpu<double>(gpu::StreamType stream, int m, int n, double* x, int ld) -> void;
+template auto reverse_2_gpu<float>(gpu::StreamType stream, int m, int n,
+                                   float *x, int ld) -> void;
 
-template auto reverse_2_gpu<cuComplex>(gpu::StreamType stream, int m, int n, cuComplex* x, int ld) -> void;
+template auto reverse_2_gpu<double>(gpu::StreamType stream, int m, int n,
+                                    double *x, int ld) -> void;
 
-template auto reverse_2_gpu<cuDoubleComplex>(gpu::StreamType stream, int m, int n, cuDoubleComplex* x, int ld)
+template auto reverse_2_gpu<gpu::ComplexType<float>>(gpu::StreamType stream,
+                                                     int m, int n,
+                                                     gpu::ComplexType<float> *x,
+                                                     int ld) -> void;
+
+template auto
+reverse_2_gpu<gpu::ComplexType<double>>(gpu::StreamType stream, int m, int n,
+                                        gpu::ComplexType<double> *x, int ld)
     -> void;
 
 }  // namespace bluebild
