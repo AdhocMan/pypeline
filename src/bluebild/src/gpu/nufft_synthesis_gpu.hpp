@@ -8,9 +8,9 @@
 
 namespace bluebild {
 
-template <typename T> class PeriodicSynthesisGPU {
+template <typename T> class NufftSynthesisGPU {
 public:
-  PeriodicSynthesisGPU(std::shared_ptr<ContextInternal> ctx, T tol,
+  NufftSynthesisGPU(std::shared_ptr<ContextInternal> ctx, T tol,
                         int nAntenna, int nBeam,
                         int nIntervals, int nFilter,
                         const BluebildFilter *filterHost, int nPixel,

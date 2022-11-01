@@ -10,7 +10,7 @@
 #include "host/intensity_field_data_host.hpp"
 #include "host/sensitivity_field_data_host.hpp"
 #include "host/nufft_3d3_host.hpp"
-#include "host/periodic_synthesis_host.hpp"
+#include "host/nufft_synthesis_host.hpp"
 #include "host/virtual_vis_host.hpp"
 #include "memory/buffer.hpp"
 
@@ -25,7 +25,7 @@ static auto system_memory() {
 }
 
 template <typename T>
-PeriodicSynthesisHost<T>::PeriodicSynthesisHost(
+NufftSynthesisHost<T>::NufftSynthesisHost(
     std::shared_ptr<ContextInternal> ctx, T tol, std::size_t nAntenna,
     std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
     const BluebildFilter *filter, std::size_t nPixel, const T *lmnX,
@@ -66,7 +66,7 @@ PeriodicSynthesisHost<T>::PeriodicSynthesisHost(
 }
 
 template <typename T>
-auto PeriodicSynthesisHost<T>::collect(
+auto NufftSynthesisHost<T>::collect(
     std::size_t nEig, T wl, const T *intervals, std::size_t ldIntervals,
     const std::complex<T> *s, std::size_t lds, const std::complex<T> *w,
     std::size_t ldw, const T *xyz, std::size_t ldxyz, const T *uvwX,
@@ -118,7 +118,7 @@ auto PeriodicSynthesisHost<T>::collect(
   }
 }
 
-template <typename T> auto PeriodicSynthesisHost<T>::computeNufft() -> void {
+template <typename T> auto NufftSynthesisHost<T>::computeNufft() -> void {
   if (inputCount_) {
     auto output =
         create_buffer<std::complex<T>>(ctx_->allocators().host(), nPixel_);
@@ -155,7 +155,7 @@ template <typename T> auto PeriodicSynthesisHost<T>::computeNufft() -> void {
 }
 
 template <typename T>
-auto PeriodicSynthesisHost<T>::get(BluebildFilter f, T *out, std::size_t ld)
+auto NufftSynthesisHost<T>::get(BluebildFilter f, T *out, std::size_t ld)
     -> void {
   computeNufft(); // make sure all input has been processed
 
@@ -177,7 +177,7 @@ auto PeriodicSynthesisHost<T>::get(BluebildFilter f, T *out, std::size_t ld)
   }
 }
 
-template class PeriodicSynthesisHost<float>;
-template class PeriodicSynthesisHost<double>;
+template class NufftSynthesisHost<float>;
+template class NufftSynthesisHost<double>;
 
 } // namespace bluebild

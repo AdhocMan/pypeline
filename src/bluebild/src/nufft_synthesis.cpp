@@ -3,22 +3,22 @@
 
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
-#include "bluebild/periodic_synthesis.hpp"
+#include "bluebild/nufft_synthesis.hpp"
 
-#include "host/periodic_synthesis_host.hpp"
+#include "host/nufft_synthesis_host.hpp"
 #include "context_internal.hpp"
 
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
 #include "memory/buffer.hpp"
-#include "gpu/periodic_synthesis_gpu.hpp"
+#include "gpu/nufft_synthesis_gpu.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/util/gpu_util.hpp"
 #endif
 
 namespace bluebild {
 
-template <typename T> struct PeriodicSynthesisInternal {
-  PeriodicSynthesisInternal(const std::shared_ptr<ContextInternal> &ctx, T tol,
+template <typename T> struct NufftSynthesisInternal {
+  NufftSynthesisInternal(const std::shared_ptr<ContextInternal> &ctx, T tol,
                             int nAntenna, int nBeam, int nIntervals,
                             int nFilter, const BluebildFilter *filter,
                             int nPixel, const T *lmnX, const T *lmnY,
@@ -170,45 +170,45 @@ template <typename T> struct PeriodicSynthesisInternal {
 
   std::shared_ptr<ContextInternal> ctx_;
   int nAntenna_, nBeam_, nIntervals_, nPixel_;
-  std::optional<PeriodicSynthesisHost<T>> planHost_;
+  std::optional<NufftSynthesisHost<T>> planHost_;
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
-  std::optional<PeriodicSynthesisGPU<T>> planGPU_;
+  std::optional<NufftSynthesisGPU<T>> planGPU_;
 #endif
 };
 
 template <typename T>
-PeriodicSynthesis<T>::PeriodicSynthesis(
+NufftSynthesis<T>::NufftSynthesis(
     Context &ctx, T tol, int nAntenna, int nBeam,
     int nIntervals, int nFilter, const BluebildFilter *filter,
     int nPixel, const T *lmnX, const T *lmnY, const T *lmnZ)
-    : plan_(new PeriodicSynthesisInternal<T>(
+    : plan_(new NufftSynthesisInternal<T>(
                 InternalContextAccessor::get(ctx), tol, nAntenna, nBeam,
                 nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ),
             [](auto &&ptr) {
-              delete reinterpret_cast<PeriodicSynthesisInternal<T> *>(ptr);
+              delete reinterpret_cast<NufftSynthesisInternal<T> *>(ptr);
             }) {}
 
 template <typename T>
-auto PeriodicSynthesis<T>::collect(int nEig, T wl, const T *intervals,
+auto NufftSynthesis<T>::collect(int nEig, T wl, const T *intervals,
                                    int ldIntervals, const std::complex<T> *s,
                                    int lds, const std::complex<T> *w, int ldw,
                                    const T *xyz, int ldxyz, const T *uvwX,
                                    const T *uvwY, const T *uvwZ) -> void {
 
-  reinterpret_cast<PeriodicSynthesisInternal<T> *>(plan_.get())
+  reinterpret_cast<NufftSynthesisInternal<T> *>(plan_.get())
       ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz,
                 uvwX, uvwY, uvwZ);
 }
 
 template <typename T>
-auto PeriodicSynthesis<T>::get(BluebildFilter f, T *out, int ld)
+auto NufftSynthesis<T>::get(BluebildFilter f, T *out, int ld)
     -> void {
-  reinterpret_cast<PeriodicSynthesisInternal<T> *>(plan_.get())
+  reinterpret_cast<NufftSynthesisInternal<T> *>(plan_.get())
       ->get(f, out, ld);
 }
 
-template class BLUEBILD_EXPORT PeriodicSynthesis<double>;
+template class BLUEBILD_EXPORT NufftSynthesis<double>;
 
-template class BLUEBILD_EXPORT PeriodicSynthesis<float>;
+template class BLUEBILD_EXPORT NufftSynthesis<float>;
 
 } // namespace bluebild

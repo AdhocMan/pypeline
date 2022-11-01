@@ -10,12 +10,12 @@
 namespace bluebild {
 
 template <typename T>
-class BLUEBILD_EXPORT PeriodicSynthesis {
+class BLUEBILD_EXPORT NufftSynthesis {
 public:
   static_assert(std::is_same_v<T, double> || std::is_same_v<T, float>);
   using valueType = T;
 
-  PeriodicSynthesis(Context &ctx, T tol, int nAntenna,
+  NufftSynthesis(Context &ctx, T tol, int nAntenna,
                     int nBeam, int nIntervals,
                     int nFilter, const BluebildFilter *filter,
                     int nPixel, const T *lmnX, const T *lmnY,

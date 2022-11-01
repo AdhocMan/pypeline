@@ -7,12 +7,12 @@ set(BLUEBILD_SOURCE_FILES
 	nufft_3d3.cpp
     standard_synthesizer.cpp
 	context.cpp
-	periodic_synthesis.cpp
+	nufft_synthesis.cpp
 	host/eigensolver_host.cpp
 	host/gram_matrix_host.cpp
 	host/sensitivity_field_data_host.cpp
 	host/intensity_field_data_host.cpp
-	host/periodic_synthesis_host.cpp
+	host/nufft_synthesis_host.cpp
 	host/nufft_3d3_host.cpp
 	host/virtual_vis_host.cpp
 	host/ss_host.cpp
@@ -27,7 +27,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/intensity_field_data_gpu.cpp
 		gpu/gram_matrix_gpu.cpp
 		gpu/nufft_3d3_gpu.cpp
-		gpu/periodic_synthesis_gpu.cpp
+		gpu/nufft_synthesis_gpu.cpp
 		gpu/virtual_vis_gpu.cpp
 		gpu/standard_synthesizer_gpu.cpp
 		gpu/util/solver_api.cpp

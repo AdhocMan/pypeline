@@ -10,9 +10,9 @@
 
 namespace bluebild {
 
-template <typename T> class PeriodicSynthesisHost {
+template <typename T> class NufftSynthesisHost {
 public:
-  PeriodicSynthesisHost(std::shared_ptr<ContextInternal> ctx, T tol,
+  NufftSynthesisHost(std::shared_ptr<ContextInternal> ctx, T tol,
                         std::size_t nAntenna, std::size_t nBeam,
                         std::size_t nIntervals, std::size_t nFilter,
                         const BluebildFilter *filter, std::size_t nPixel,

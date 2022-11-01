@@ -340,9 +340,9 @@ struct Nufft3d3Dispatcher {
 };
 
 
-struct PeriodicSynthesisDispatcher {
+struct NufftSynthesisDispatcher {
 
-  PeriodicSynthesisDispatcher(
+  NufftSynthesisDispatcher(
       Context &ctx, int nAntenna, int nBeam, int nIntervals,
       const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
       const py::array &lmnX, const py::array &lmnY, const py::array &lmnZ,
@@ -359,7 +359,7 @@ struct PeriodicSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = PeriodicSynthesis<float>(ctx, tol, nAntenna, nBeam, nIntervals,
+      plan_ = NufftSynthesis<float>(ctx, tol, nAntenna, nBeam, nIntervals,
                                        filter.shape(0), filter.data(0),
                                        lmnXArray.shape(0), lmnXArray.data(0),
                                        lmnYArray.data(0), lmnZArray.data(0));
@@ -374,7 +374,7 @@ struct PeriodicSynthesisDispatcher {
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
-      plan_ = PeriodicSynthesis<double>(ctx, tol, nAntenna, nBeam, nIntervals,
+      plan_ = NufftSynthesis<double>(ctx, tol, nAntenna, nBeam, nIntervals,
                                        filter.shape(0), filter.data(0),
                                        lmnXArray.shape(0), lmnXArray.data(0),
                                        lmnYArray.data(0), lmnZArray.data(0));
@@ -383,15 +383,15 @@ struct PeriodicSynthesisDispatcher {
     }
   }
 
-  PeriodicSynthesisDispatcher(PeriodicSynthesisDispatcher &&) = default;
+  NufftSynthesisDispatcher(NufftSynthesisDispatcher &&) = default;
 
-  PeriodicSynthesisDispatcher(const PeriodicSynthesisDispatcher &) = delete;
+  NufftSynthesisDispatcher(const NufftSynthesisDispatcher &) = delete;
 
-  PeriodicSynthesisDispatcher &
-  operator=(PeriodicSynthesisDispatcher &&) = default;
+  NufftSynthesisDispatcher &
+  operator=(NufftSynthesisDispatcher &&) = default;
 
-  PeriodicSynthesisDispatcher &
-  operator=(const PeriodicSynthesisDispatcher &) = delete;
+  NufftSynthesisDispatcher &
+  operator=(const NufftSynthesisDispatcher &) = delete;
 
   auto collect(int nEig, double wl, pybind11::array intervals,
                pybind11::array w, pybind11::array xyz, pybind11::array uvwX,
@@ -400,9 +400,9 @@ struct PeriodicSynthesisDispatcher {
     std::visit(
         [&](auto &&arg) -> void {
           using variantType = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<variantType, PeriodicSynthesis<float>> ||
+          if constexpr (std::is_same_v<variantType, NufftSynthesis<float>> ||
                         std::is_same_v<variantType,
-                                       PeriodicSynthesis<double>>) {
+                                       NufftSynthesis<double>>) {
             using T = typename variantType::valueType;
             py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
             check_2d_array(intervalsArray, {nIntervals_, 2});
@@ -433,7 +433,7 @@ struct PeriodicSynthesisDispatcher {
                   s.value());
               check_2d_array(sArray.value(), {nBeam, nBeam});
             }
-            std::get<PeriodicSynthesis<T>>(plan_).collect(
+            std::get<NufftSynthesis<T>>(plan_).collect(
                 nEig, wl, intervalsArray.data(0),
                 safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
                 s ? sArray.value().data(0) : nullptr,
@@ -457,15 +457,15 @@ struct PeriodicSynthesisDispatcher {
     return std::visit(
         [&](auto &&arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, PeriodicSynthesis<double>>) {
+          if constexpr (std::is_same_v<T, NufftSynthesis<double>>) {
             py::array_t<double> out({nIntervals_, nPixel_});
-            std::get<PeriodicSynthesis<double>>(plan_).get(
+            std::get<NufftSynthesis<double>>(plan_).get(
                 f, out.mutable_data(0),
                 safe_cast<int>(out.strides(0) / out.itemsize()));
             return out;
-          } else if constexpr (std::is_same_v<T, PeriodicSynthesis<float>>) {
+          } else if constexpr (std::is_same_v<T, NufftSynthesis<float>>) {
             py::array_t<float> out({nIntervals_, nPixel_});
-            std::get<PeriodicSynthesis<float>>(plan_).get(
+            std::get<NufftSynthesis<float>>(plan_).get(
                 f, out.mutable_data(0),
                 safe_cast<int>(out.strides(0) / out.itemsize()));
             return out;
@@ -477,8 +477,8 @@ struct PeriodicSynthesisDispatcher {
         plan_);
   }
 
-  std::variant<std::monostate, PeriodicSynthesis<float>,
-               PeriodicSynthesis<double>>
+  std::variant<std::monostate, NufftSynthesis<float>,
+               NufftSynthesis<double>>
       plan_;
   int nIntervals_, nPixel_;
 };
@@ -639,7 +639,7 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("u"))
       .def("execute", &Nufft3d3Dispatcher::execute, pybind11::arg("cj"));
 
-  pybind11::class_<PeriodicSynthesisDispatcher>(m, "PeriodicSynthesis")
+  pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
       .def(pybind11::init<
                Context &, int, int, int,
                const py::array_t<BluebildFilter, pybind11::array::f_style> &,
@@ -650,12 +650,12 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"), pybind11::arg("tol"))
-      .def("collect", &PeriodicSynthesisDispatcher::collect,
+      .def("collect", &NufftSynthesisDispatcher::collect,
            pybind11::arg("nEig"), pybind11::arg("wl"),
            pybind11::arg("intervals"), pybind11::arg("w"), pybind11::arg("xyz"),
            pybind11::arg("uvwX"), pybind11::arg("uvwY"), pybind11::arg("uvwY"),
            pybind11::arg("s"))
-      .def("get", &PeriodicSynthesisDispatcher::get, pybind11::arg("f"));
+      .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<SSDispatcher>(m, "SS")
       .def(pybind11::init<

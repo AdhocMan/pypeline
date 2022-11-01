@@ -8,7 +8,7 @@
 #include "gpu/intensity_field_data_gpu.hpp"
 #include "gpu/kernels/add_vector.hpp"
 #include "gpu/nufft_3d3_gpu.hpp"
-#include "gpu/periodic_synthesis_gpu.hpp"
+#include "gpu/nufft_synthesis_gpu.hpp"
 #include "gpu/sensitivity_field_data_gpu.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/virtual_vis_gpu.hpp"
@@ -17,7 +17,7 @@ namespace bluebild {
 
 
 template <typename T>
-PeriodicSynthesisGPU<T>::PeriodicSynthesisGPU(
+NufftSynthesisGPU<T>::NufftSynthesisGPU(
     std::shared_ptr<ContextInternal> ctx, T tol, int nAntenna, int nBeam,
     int nIntervals, int nFilter, const BluebildFilter *filterHost, int nPixel,
     const T *lmnX, const T *lmnY, const T *lmnZ)
@@ -66,7 +66,7 @@ PeriodicSynthesisGPU<T>::PeriodicSynthesisGPU(
 }
 
 template <typename T>
-auto PeriodicSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
+auto NufftSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
                                       int ldIntervals,
                                       const gpu::ComplexType<T> *s, int lds,
                                       const gpu::ComplexType<T> *w, int ldw,
@@ -125,7 +125,7 @@ auto PeriodicSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
   }
 }
 
-template <typename T> auto PeriodicSynthesisGPU<T>::computeNufft() -> void {
+template <typename T> auto NufftSynthesisGPU<T>::computeNufft() -> void {
   if (inputCount_) {
     auto output =
         create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(), nPixel_);
@@ -164,7 +164,7 @@ template <typename T> auto PeriodicSynthesisGPU<T>::computeNufft() -> void {
 }
 
 template <typename T>
-auto PeriodicSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice, int ld) -> void {
+auto NufftSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice, int ld) -> void {
   computeNufft(); // make sure all input has been processed
 
   int index = nFilter_;
@@ -185,7 +185,7 @@ auto PeriodicSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice, int ld) 
       ctx_->gpu_stream()));
 }
 
-template class PeriodicSynthesisGPU<float>;
-template class PeriodicSynthesisGPU<double>;
+template class NufftSynthesisGPU<float>;
+template class NufftSynthesisGPU<double>;
 
 } // namespace bluebild
