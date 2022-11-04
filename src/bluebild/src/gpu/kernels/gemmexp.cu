@@ -69,7 +69,7 @@ gemmexp_kernel(int nEig, int nPixel, int nAntenna, T alpha,
                                    pZ * xyz[idxAnt + 2 * ldxyz]);
         ComplexOp<T> sc;
         calc_sincos(imag, &(sc.y), &(sc.x));
-        localSum = localSum + vUnbeam[idxEig * ldv + idxAnt] + sc;
+        localSum = localSum + sc * vUnbeam[idxEig * ldv + idxAnt];
       }
 
       auto totalSum = BlockReduceType(tmpStorage).Sum(localSum);
@@ -91,7 +91,7 @@ auto gemmexp_gpu(gpu::StreamType stream, int nEig, int nPixel, int nAntenna,
 
   dim3 block(blockSize, 1, 1);
   dim3 grid(std::min<unsigned int>(maxBlocks, nPixel),
-            std::min<unsigned int>(maxBlocks, nEig));
+            std::min<unsigned int>(maxBlocks, nEig), 1);
 
   gpu::launch_kernel(
       gemmexp_kernel<T, blockSize,

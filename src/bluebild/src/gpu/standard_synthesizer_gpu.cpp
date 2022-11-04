@@ -74,6 +74,14 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
     sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
                                ldxyz, d.get(), v.get(), nBeam_);
 
+  auto DBufferHost = create_buffer<T>(ctx_->allocators().pinned(), nEig);
+  auto DFilteredBufferHost = create_buffer<T>(ctx_->allocators().host(), nEig);
+  gpu::check_status(
+      gpu::memcpy_async(DBufferHost.get(), d.get(), nEig * sizeof(T),
+                        gpu::flag::MemcpyDeviceToHost, ctx_->gpu_stream()));
+  // Make sure D is available on host
+  gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream()));
+
   gpu::ComplexType<T> one{1, 0};
   gpu::ComplexType<T> zero{0, 0};
   gpu::blas::check_status(gpu::blas::gemm(
@@ -86,17 +94,10 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
                  vUnbeam.get(), nAntenna_, xyz, ldxyz, pixelX_.get(),
                  pixelY_.get(), pixelZ_.get(), unlayeredStats.get(), nPixel_);
 
-  auto DBufferHost = create_buffer<T>(ctx_->allocators().pinned(), nEig);
-  auto DFilteredBufferHost = create_buffer<T>(ctx_->allocators().host(), nEig);
-  gpu::check_status(
-      gpu::memcpy_async(DBufferHost.get(), d.get(), nEig * sizeof(T),
-                        gpu::flag::MemcpyDeviceToHost, ctx_->gpu_stream()));
-  // Make sure D is available on host
-  gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream()));
 
   auto filterHost = filterHost_.get();
   for (std::size_t idxFilter = 0; idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
-    apply_filter(filterHost_.get()[idxFilter], nEig, d.get(), DFilteredBufferHost.get());
+    apply_filter(filterHost_.get()[idxFilter], nEig, DBufferHost.get(), DFilteredBufferHost.get());
 
     for (std::size_t idxInt = 0; idxInt < static_cast<std::size_t>(nIntervals_); ++idxInt) {
       std::size_t start, size;
