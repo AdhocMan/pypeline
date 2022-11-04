@@ -2,13 +2,13 @@
 #include <optional>
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
-#include "bluebild/standard_synthesizer.hpp"
+#include "bluebild/standard_synthesis.hpp"
 #include "host/ss_host.hpp"
-#include "host/standard_synthesizer_host.hpp"
+#include "host/standard_synthesis_host.hpp"
 #include "context_internal.hpp"
 #include "memory/buffer.hpp"
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
-#include "gpu/standard_synthesizer_gpu.hpp"
+#include "gpu/standard_synthesis_gpu.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/util/gpu_util.hpp"
 #endif

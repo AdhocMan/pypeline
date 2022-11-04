@@ -5,7 +5,7 @@ set(BLUEBILD_SOURCE_FILES
 	sensitivity_field_data.cpp
 	virtual_vis.cpp
 	nufft_3d3.cpp
-    standard_synthesizer.cpp
+	standard_synthesis.cpp
 	context.cpp
 	nufft_synthesis.cpp
 	host/eigensolver_host.cpp
@@ -17,7 +17,7 @@ set(BLUEBILD_SOURCE_FILES
 	host/virtual_vis_host.cpp
 	host/ss_host.cpp
 	host/gemmexp.cpp
-	host/standard_synthesizer_host.cpp
+	host/standard_synthesis_host.cpp
 	)
 
 if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
@@ -29,7 +29,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/nufft_3d3_gpu.cpp
 		gpu/nufft_synthesis_gpu.cpp
 		gpu/virtual_vis_gpu.cpp
-		gpu/standard_synthesizer_gpu.cpp
+		gpu/standard_synthesis_gpu.cpp
 		gpu/util/solver_api.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/inv_square.cu

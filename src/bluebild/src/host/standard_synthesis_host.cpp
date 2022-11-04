@@ -1,4 +1,4 @@
-#include "host/standard_synthesizer_host.hpp"
+#include "host/standard_synthesis_host.hpp"
 
 #include <complex>
 #include <complex.h>

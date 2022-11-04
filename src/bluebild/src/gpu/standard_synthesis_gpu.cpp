@@ -11,7 +11,7 @@
 #include "gpu/kernels/scale_matrix.hpp"
 #include "gpu/kernels/gemmexp.hpp"
 #include "gpu/sensitivity_field_data_gpu.hpp"
-#include "gpu/standard_synthesizer_gpu.hpp"
+#include "gpu/standard_synthesis_gpu.hpp"
 #include "gpu/util/gpu_blas_api.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "util.hpp"
