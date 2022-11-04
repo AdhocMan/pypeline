@@ -158,7 +158,6 @@ template <typename T> struct NufftSynthesisInternal {
     if (planHost_) {
       planHost_.value().get(f, out, ld);
     } else {
-      // TODO
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
       planGPU_->get(f, out, ld);
       gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream()));

@@ -409,6 +409,24 @@ inline auto symm(HandleType handle, SideModeType side, FillModeType uplo, int m,
 #endif  // BLUEBILD_CUDA
 }
 
+inline auto axpy(HandleType handle, int n, const float *alpha, const float *x,
+                 int incx, float *y, int incy) -> StatusType {
+#if defined(BLUEBILD_CUDA)
+  return cublasSaxpy(handle, n, alpha, x, incx, y, incy);
+#else
+  return rocblas_saxpy(handle, n, aplha, x, incx, incy);
+#endif  // BLUEBILD_CUDA
+}
+
+inline auto axpy(HandleType handle, int n, const double *alpha, const double *x,
+                 int incx, double *y, int incy) -> StatusType {
+#if defined(BLUEBILD_CUDA)
+  return cublasDaxpy(handle, n, alpha, x, incx, y, incy);
+#else
+  return rocblas_daxpy(handle, n, aplha, x, incx, incy);
+#endif  // BLUEBILD_CUDA
+}
+
 }  // namespace blas
 }  // namespace gpu
 }  // namespace bluebild

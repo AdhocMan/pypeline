@@ -179,72 +179,6 @@ auto call_virtual_vis(
   return virtualVis;
 }
 
-struct SSDispatcher {
-    SSDispatcher(const Context &ctx, const float wl,
-                 const std::size_t Nl, const std::size_t Nh, const std::size_t Nw,
-                 const py::array_t<float, pybind11::array::f_style> &pix_grid,
-                 py::array_t<float, pybind11::array::f_style> &stats_std_cum,
-                 py::array_t<float, pybind11::array::f_style> &stats_lsq_cum) {
-        ss_ = SSf(ctx, wl, Nl, Nh, Nw, pix_grid.data(0),
-                  stats_std_cum.mutable_data(0), stats_lsq_cum.mutable_data(0));
-    }
-    SSDispatcher(const Context &ctx, const double wl,
-                 const std::size_t Nl, const std::size_t Nh, const std::size_t Nw,
-                 const py::array_t<double, pybind11::array::f_style> &pix_grid,
-                 py::array_t<double, pybind11::array::f_style> &stats_std_cum,
-                 py::array_t<double, pybind11::array::f_style> &stats_lsq_cum) {
-        ss_ = SS(ctx, wl, Nl, Nh, Nw, pix_grid.data(0),
-                 stats_std_cum.mutable_data(0), stats_lsq_cum.mutable_data(0));
-    }
-
-    SSDispatcher(SSDispatcher &&) = default;
-    SSDispatcher(const SSDispatcher &) = delete;
-    SSDispatcher &operator=(SSDispatcher &&) = default;
-    SSDispatcher &operator=(const SSDispatcher &) = delete;
-
-
-    auto execute(pybind11::array d, pybind11::array v, pybind11::array xyz,
-                 pybind11::array w, pybind11::array c_idx, const bool d2h) -> void {
-
-        if (d.ndim() != 1)     throw InvalidParameterError();
-        if (c_idx.ndim() != 1) throw InvalidParameterError();
-        if (v.ndim() != 2)     throw InvalidParameterError();
-        if (xyz.ndim() != 2)   throw InvalidParameterError();
-        if (w.ndim() != 2)     throw InvalidParameterError();
-
-        const size_t Na = xyz.shape(0);
-        const size_t Ne = d.shape(0);
-        const size_t Nb = v.shape(0);
-
-        assert(c_idx.shape(0) == Ne);
-
-        std::visit([&](auto &&arg) {
-          using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, SSf>) {
-                  py::array_t<float, py::array::f_style> dArray(d);                
-                  py::array_t<std::complex<float>, py::array::f_style> vArray(v);
-                  py::array_t<float, py::array::f_style> xyzArray(xyz);
-                  py::array_t<std::complex<float>, py::array::f_style> wArray(w);
-                  py::array_t<std::size_t, py::array::f_style> cidxArray(c_idx);
-                  std::get<SSf>(ss_).execute(dArray.data(0), vArray.data(0), xyzArray.data(0),
-                                             wArray.data(0), cidxArray.data(0), Na, Ne, Nb, d2h);
-              } else if constexpr (std::is_same_v<T, SS>) {
-                  py::array_t<double, py::array::f_style> dArray(d);
-                  py::array_t<std::complex<double>, py::array::f_style> vArray(v);
-                  py::array_t<double, py::array::f_style> xyzArray(xyz);
-                  py::array_t<std::complex<double>, py::array::f_style> wArray(w);
-                  py::array_t<std::size_t, py::array::f_style> cidxArray(c_idx);
-                  std::get<SS>(ss_).execute(dArray.data(0), vArray.data(0), xyzArray.data(0),
-                                            wArray.data(0), cidxArray.data(0), Na, Ne, Nb, d2h);
-              } else {
-              throw InternalError();
-          }
-       }, ss_);
-    }
-
-    std::variant<std::monostate, SSf, SS> ss_;    
-};
-
 struct Nufft3d3Dispatcher {
 
   Nufft3d3Dispatcher(const Context &ctx, int iflag, float tol, int numTrans,
@@ -338,6 +272,139 @@ struct Nufft3d3Dispatcher {
   int m_, n_, numTrans_;
   std::variant<std::monostate, Nufft3d3f, Nufft3d3> plan_;
 };
+
+struct StandardSynthesisDispatcher {
+
+  StandardSynthesisDispatcher(
+      Context &ctx, int nAntenna, int nBeam, int nIntervals,
+      const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
+      const py::array &pixelX, const py::array &pixelY, const py::array &pixelZ,
+      const std::string &precision)
+      : nIntervals_(nIntervals), nPixel_(pixelX.shape(0)) {
+    if (precision == "single" || precision == "SINGLE") {
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast>
+          pixelXArray(pixelX);
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast>
+          pixelYArray(pixelY);
+      py::array_t<float, pybind11::array::f_style | py::array::forcecast>
+          pixelZArray(pixelZ);
+      check_1d_array(filter);
+      check_1d_array(pixelXArray);
+      check_1d_array(pixelYArray, pixelXArray.shape(0));
+      check_1d_array(pixelZArray, pixelXArray.shape(0));
+      plan_ = StandardSynthesis<float>(
+          ctx, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
+          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0),
+          pixelZArray.data(0));
+    } else if (precision == "double" || precision == "DOUBLE") {
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast>
+          pixelXArray(pixelX);
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast>
+          pixelYArray(pixelY);
+      py::array_t<double, pybind11::array::f_style | py::array::forcecast>
+          pixelZArray(pixelZ);
+      check_1d_array(filter);
+      check_1d_array(pixelXArray);
+      check_1d_array(pixelYArray, pixelXArray.shape(0));
+      check_1d_array(pixelZArray, pixelXArray.shape(0));
+      plan_ = StandardSynthesis<double>(
+          ctx, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
+          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0),
+          pixelZArray.data(0));
+    } else {
+      throw InvalidParameterError();
+    }
+  }
+
+  StandardSynthesisDispatcher(StandardSynthesisDispatcher &&) = default;
+
+  StandardSynthesisDispatcher(const StandardSynthesisDispatcher &) = delete;
+
+  StandardSynthesisDispatcher &
+  operator=(StandardSynthesisDispatcher &&) = default;
+
+  StandardSynthesisDispatcher &
+  operator=(const StandardSynthesisDispatcher &) = delete;
+
+  auto collect(int nEig, double wl, pybind11::array intervals,
+               pybind11::array w, pybind11::array xyz,
+               std::optional<pybind11::array> s) -> void {
+    std::visit(
+        [&](auto &&arg) -> void {
+          using variantType = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<variantType, StandardSynthesis<float>> ||
+                        std::is_same_v<variantType,
+                                       StandardSynthesis<double>>) {
+            using T = typename variantType::valueType;
+            py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
+            check_2d_array(intervalsArray, {nIntervals_, 2});
+            py::array_t<std::complex<T>,
+                        py::array::f_style | py::array::forcecast>
+                wArray(w);
+            check_2d_array(wArray);
+            auto nAntenna = wArray.shape(0);
+            auto nBeam = wArray.shape(1);
+            py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(
+                xyz);
+            check_2d_array(xyzArray, {nAntenna, 3});
+            std::optional<py::array_t<
+                std::complex<T>, py::array::f_style | py::array::forcecast>>
+                sArray;
+            if (s) {
+              sArray = py::array_t<std::complex<T>,
+                                   py::array::f_style | py::array::forcecast>(
+                  s.value());
+              check_2d_array(sArray.value(), {nBeam, nBeam});
+            }
+            std::get<StandardSynthesis<T>>(plan_).collect(
+                nEig, wl, intervalsArray.data(0),
+                safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
+                s ? sArray.value().data(0) : nullptr,
+                s ? safe_cast<int>(sArray.value().strides(1) /
+                                   sArray.value().itemsize())
+                  : 0,
+                wArray.data(0),
+                safe_cast<int>(wArray.strides(1) / wArray.itemsize()),
+                xyzArray.data(0),
+                safe_cast<int>(xyzArray.strides(1) / xyzArray.itemsize()));
+
+          } else {
+            throw InternalError();
+          }
+        },
+        plan_);
+  }
+
+  auto get(BluebildFilter f) -> py::array {
+    return std::visit(
+        [&](auto &&arg) -> pybind11::array {
+          using T = std::decay_t<decltype(arg)>;
+          if constexpr (std::is_same_v<T, StandardSynthesis<double>>) {
+            py::array_t<double> out({nIntervals_, nPixel_});
+            std::get<StandardSynthesis<double>>(plan_).get(
+                f, out.mutable_data(0),
+                safe_cast<int>(out.strides(0) / out.itemsize()));
+            return out;
+          } else if constexpr (std::is_same_v<T, StandardSynthesis<float>>) {
+            py::array_t<float> out({nIntervals_, nPixel_});
+            std::get<StandardSynthesis<float>>(plan_).get(
+                f, out.mutable_data(0),
+                safe_cast<int>(out.strides(0) / out.itemsize()));
+            return out;
+          } else {
+            throw InternalError();
+            return py::array_t<double, py::array::f_style>();
+          }
+        },
+        plan_);
+  }
+
+  std::variant<std::monostate, StandardSynthesis<float>,
+               StandardSynthesis<double>>
+      plan_;
+  int nIntervals_, nPixel_;
+};
+
 
 
 struct NufftSynthesisDispatcher {
@@ -657,29 +724,19 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("s"))
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
-  pybind11::class_<SSDispatcher>(m, "SS")
+  pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
       .def(pybind11::init<
-           const Context &, const float,
-           const std::size_t, const std::size_t, const std::size_t,
-           const py::array_t<float, pybind11::array::f_style> &,
-           py::array_t<float, pybind11::array::f_style> &,
-           py::array_t<float, pybind11::array::f_style> &>(),
-           pybind11::arg("ctx"), pybind11::arg("wl"),
-           pybind11::arg("Nl"), pybind11::arg("Nh"), pybind11::arg("Nw"),
-           pybind11::arg("pix_grid"),
-           pybind11::arg("stats_std_cum"), pybind11::arg("stats_lsq_cum"))
-      .def(pybind11::init<
-           const Context &, const double,
-           const std::size_t, const std::size_t, const std::size_t,
-           const py::array_t<double, pybind11::array::f_style> &,
-           py::array_t<double, pybind11::array::f_style> &,
-           py::array_t<double, pybind11::array::f_style> &>(),
-           pybind11::arg("ctx"), pybind11::arg("wl"),
-           pybind11::arg("Nl"), pybind11::arg("Nh"), pybind11::arg("Nw"),
-           pybind11::arg("pix_grid"),
-           pybind11::arg("stats_std_cum"), pybind11::arg("stats_lsq_cum"))
-      .def("execute", &SSDispatcher::execute,
-           pybind11::arg("d"), pybind11::arg("v"),
-           pybind11::arg("xyz"), pybind11::arg("w"), pybind11::arg("c_idx"),
-           pybind11::arg("d2h"));
+               Context &, int, int, int,
+               const py::array_t<BluebildFilter, pybind11::array::f_style> &,
+               const py::array &, const py::array &, const py::array &,
+               const std::string &>(),
+           pybind11::arg("ctx"), pybind11::arg("n_antenna"),
+           pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
+           pybind11::arg("filter"), pybind11::arg("lmn_x"),
+           pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
+           pybind11::arg("precision"))
+      .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("nEig"),
+           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
+           pybind11::arg("xyz"), pybind11::arg("s"))
+      .def("get", &StandardSynthesisDispatcher::get, pybind11::arg("f"));
 }

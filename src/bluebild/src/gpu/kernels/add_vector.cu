@@ -8,8 +8,8 @@ namespace bluebild {
 namespace gpu {
 
 template <typename T>
-__global__ void
-add_vector_kernel(int n, const gpu::ComplexType<T> *__restrict__ a, T *b) {
+__global__ static void
+add_vector_real_kernel(int n, const gpu::ComplexType<T> *__restrict__ a, T *b) {
   for (int i = threadIdx.x + blockIdx.x * blockDim.x; i < n;
        i += gridDim.x * blockDim.x) {
     b[i] += a[i].x;
@@ -17,7 +17,7 @@ add_vector_kernel(int n, const gpu::ComplexType<T> *__restrict__ a, T *b) {
 }
 
 template <typename T>
-auto add_vector(gpu::StreamType stream, int n, const gpu::ComplexType<T> *a,
+auto add_vector_real(gpu::StreamType stream, int n, const gpu::ComplexType<T> *a,
                 T *b) -> void {
   constexpr int blockSize = 256;
   constexpr int maxBlocks = 65535;
@@ -25,14 +25,14 @@ auto add_vector(gpu::StreamType stream, int n, const gpu::ComplexType<T> *a,
   dim3 block(blockSize, 1, 1);
   dim3 grid(std::min<unsigned int>(maxBlocks, (n + block.x - 1) / block.x), 1,
             1);
-  gpu::launch_kernel(add_vector_kernel<T>, grid, block, 0, stream, n, a, b);
+  gpu::launch_kernel(add_vector_real_kernel<T>, grid, block, 0, stream, n, a, b);
 }
 
-template auto add_vector<float>(gpu::StreamType stream, int n,
+template auto add_vector_real<float>(gpu::StreamType stream, int n,
                                 const gpu::ComplexType<float> *a, float *b)
     -> void;
 
-template auto add_vector<double>(gpu::StreamType stream, int n,
+template auto add_vector_real<double>(gpu::StreamType stream, int n,
                                  const gpu::ComplexType<double> *a, double *b)
     -> void;
 

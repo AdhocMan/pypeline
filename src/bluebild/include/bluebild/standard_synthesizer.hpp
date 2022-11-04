@@ -9,36 +9,24 @@
 
 namespace bluebild {
 
-class BLUEBILD_EXPORT SS {
-
+template <typename T>
+class BLUEBILD_EXPORT StandardSynthesis {
 public:
+  static_assert(std::is_same_v<T, double> || std::is_same_v<T, float>);
+  using valueType = T;
 
-    SS(const Context &ctx, const double wl,
-       const size_t Nl, const size_t Nh, const size_t Nw,
-       const double* pix_grid, double* stats_std_cum, double* stats_lsq_cum);
+  StandardSynthesis(Context &ctx, int nAntenna, int nBeam, int nIntervals,
+                    int nFilter, const BluebildFilter *filter, int nPixel,
+                    const T *lmnX, const T *lmnY, const T *lmnZ);
 
-    void execute(const double* d, const std::complex<double>* v, const double* xyz,
-                 const std::complex<double>* w, const std::size_t* c_idx,
-                 const size_t Na, const size_t Ne, const size_t Nb, const bool d2h);
-    
-private:
-  std::unique_ptr<void, std::function<void(void *)>> ss_;
-};
+  auto collect(int nEig, T wl, const T *intervals, int ldIntervals,
+               const std::complex<T> *s, int lds, const std::complex<T> *w,
+               int ldw, const T *xyz, int ldxyz) -> void;
 
-class BLUEBILD_EXPORT SSf {
-
-public:
-
-    SSf(const Context &ctx, const float wl,
-        const size_t Nl, const size_t Nh, const size_t Nw,
-        const float* pix_grid, float* stats_std_cum, float* stats_lsq_sum);
-
-    void execute(const float* d, const std::complex<float>* v, const float* xyz,
-                 const std::complex<float>* w, const std::size_t* c_idx,
-                 const size_t Na, const size_t Ne, const size_t Nb, const bool d2h);
+  auto get(BluebildFilter f, T *out, int ld) -> void;
 
 private:
-  std::unique_ptr<void, std::function<void(void *)>> ss_;
+  std::unique_ptr<void, std::function<void(void *)>> plan_;
 };
 
 } // namespace bluebild

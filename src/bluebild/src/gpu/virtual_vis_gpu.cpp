@@ -7,7 +7,7 @@
 #include "gpu/util/gpu_blas_api.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
 #include "gpu/virtual_vis_gpu.hpp"
-#include "host/virtual_vis_host.hpp"
+#include "util.hpp"
 #include "memory/buffer.hpp"
 
 namespace bluebild {

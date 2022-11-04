@@ -1,118 +1,144 @@
 #include <complex>
-#include <cstddef>
+#include <functional>
+#include <memory>
+#include <cstring>
 
-#include "bluebild/bluebild.h"
 #include "bluebild/config.h"
-#include "memory/buffer.hpp"
-#include "context_internal.hpp"
-#include "gpu/kernels/standard_synthesizer.hpp"
+#include "bluebild/exceptions.hpp"
+#include "gpu/intensity_field_data_gpu.hpp"
+#include "gpu/kernels/add_vector.hpp"
+#include "gpu/kernels/apply_filter.hpp"
+#include "gpu/kernels/scale_matrix.hpp"
+#include "gpu/kernels/gemmexp.hpp"
+#include "gpu/sensitivity_field_data_gpu.hpp"
+#include "gpu/standard_synthesizer_gpu.hpp"
 #include "gpu/util/gpu_blas_api.hpp"
 #include "gpu/util/gpu_runtime_api.hpp"
+#include "util.hpp"
 
 namespace bluebild {
 
 template <typename T>
-auto standard_synthesizer_gpu(ContextInternal& ctx, const T wl, const T* grid,
-                              const T* xyz, const T* d, const gpu::ComplexType<T>* v, 
-                              const gpu::ComplexType<T>* w,
-                              const size_t* c_idx, const size_t* c_thick,
-                              const size_t Na, const size_t Nb, const size_t Ne,
-                              const size_t Nh, const size_t Nl,
-                              const size_t Nws, const size_t Nwe, const size_t largest_chunck,
-                              T* stats_std_cum, T* stats_lsq_cum) -> void {
+StandardSynthesisGPU<T>::StandardSynthesisGPU(
+    std::shared_ptr<ContextInternal> ctx, int nAntenna, int nBeam,
+    int nIntervals, int nFilter, const BluebildFilter *filterHost, int nPixel,
+    const T *pixelX, const T *pixelY, const T *pixelZ)
+    : ctx_(std::move(ctx)), nIntervals_(nIntervals), nFilter_(nFilter),
+      nPixel_(nPixel), nAntenna_(nAntenna), nBeam_(nBeam) {
+  filterHost_ = create_buffer<BluebildFilter>(ctx_->allocators().host(), nFilter_);
+  std::memcpy(filterHost_.get(), filterHost, sizeof(BluebildFilter) * nFilter_);
+  pixelX_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
+  gpu::check_status(gpu::memcpy_async(pixelX_.get(), pixelX, sizeof(T) * nPixel_,
+                                      gpu::flag::MemcpyDeviceToDevice,
+                                      ctx_->gpu_stream()));
+  pixelY_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
+  gpu::check_status(gpu::memcpy_async(pixelY_.get(), pixelY, sizeof(T) * nPixel_,
+                                      gpu::flag::MemcpyDeviceToDevice,
+                                      ctx_->gpu_stream()));
+  pixelZ_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
+  gpu::check_status(gpu::memcpy_async(pixelZ_.get(), pixelZ, sizeof(T) * nPixel_,
+                                      gpu::flag::MemcpyDeviceToDevice,
+                                      ctx_->gpu_stream()));
 
-  using ComplexType = gpu::ComplexType<T>;
-
-  // Nw is now the split thickness
-  const size_t Nw = Nwe - Nws;
-
-  // Allocate for intermediate matrices
-  auto pD  = create_buffer<ComplexType>(ctx.allocators().gpu(), Na * Nh * largest_chunck);
-  auto pwD = create_buffer<ComplexType>(ctx.allocators().gpu(), Nb * Nh * largest_chunck);
-  auto eD  = create_buffer<ComplexType>(ctx.allocators().gpu(), Ne * Nh * largest_chunck);
-
-  standard_synthesizer_p_gpu(ctx.gpu_stream(), wl, grid, xyz, Na, Nh, Nw, pD.get());
-
-  auto hd_ws  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().host(), largest_chunck);
-  auto hd_ps  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().host(), largest_chunck);
-  auto hd_pws = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().host(), largest_chunck);
-  auto hd_vs  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().host(), largest_chunck);
-  auto hd_es  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().host(), largest_chunck);
-
-  size_t idx_ip, idx_ipw, idx_ie;
-  for (uint k=0; k<Nw; k++) {
-      hd_ws[k]  = w; // invariant
-      hd_vs[k]  = v; // invariant
-      idx_ip    = k * Na * Nh;
-      idx_ipw   = k * Nh * Nb;
-      idx_ie    = k * Nh * Ne;
-      hd_ps[k]  = &pD[idx_ip];
-      hd_pws[k] = &pwD[idx_ipw];
-      hd_es[k]  = &eD[idx_ie];
-  }
-
-  auto d_ws  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().gpu(), largest_chunck);
-  auto d_ps  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().gpu(), largest_chunck);
-  auto d_pws = create_buffer<gpu::ComplexType<T>*>(ctx.allocators().gpu(), largest_chunck);
-  auto d_vs  = create_buffer<const gpu::ComplexType<T>*>(ctx.allocators().gpu(), largest_chunck);
-  auto d_es  = create_buffer<gpu::ComplexType<T>*>(ctx.allocators().gpu(), largest_chunck);
-
-  gpu::check_status(gpu::memcpy_async(d_ws.get(), hd_ws.get(), Nw * sizeof(gpu::ComplexType<T>*),
-                                      gpu::flag::MemcpyHostToDevice, ctx.gpu_stream()));
-  gpu::check_status(gpu::memcpy_async(d_ps.get(), hd_ps.get(), Nw * sizeof(gpu::ComplexType<T>*),
-                                      gpu::flag::MemcpyHostToDevice, ctx.gpu_stream()));
-  gpu::check_status(gpu::memcpy_async(d_pws.get(), hd_pws.get(), Nw * sizeof(gpu::ComplexType<T>*),
-                                      gpu::flag::MemcpyHostToDevice, ctx.gpu_stream()));
-  gpu::check_status(gpu::memcpy_async(d_vs.get(), hd_vs.get(), Nw * sizeof(gpu::ComplexType<T>*),
-                                      gpu::flag::MemcpyHostToDevice, ctx.gpu_stream()));
-  gpu::check_status(gpu::memcpy_async(d_es.get(), hd_es.get(), Nw * sizeof(gpu::ComplexType<T>*),
-                                      gpu::flag::MemcpyHostToDevice, ctx.gpu_stream()));
-  
-  const ComplexType alpha{1.0, 0.0};
-  const ComplexType beta{0.0, 0.0};
-
-  gpu::blas::check_status(gpu::blas::gemm_batched(ctx.gpu_blas_handle(),
-                                                  gpu::blas::operation::Transpose,
-                                                  gpu::blas::operation::None,
-                                                  (int)Nb, (int)Nh, (int)Na,
-                                                  &alpha,
-                                                  d_ws.get(), (int)Na,
-                                                  d_ps.get(), (int)Na,
-                                                  &beta,
-                                                  d_pws.get(), (int)Nb,
-                                                  (int)Nw));
-
-  gpu::blas::check_status(gpu::blas::gemm_batched(ctx.gpu_blas_handle(),
-                                                  gpu::blas::operation::Transpose,
-                                                  gpu::blas::operation::None,
-                                                  (int)Ne, (int)Nh, (int)Nb,
-                                                  &alpha,
-                                                  d_vs.get(), (int)Nb,
-                                                  d_pws.get(), (int)Nb,
-                                                  &beta,
-                                                  d_es.get(), (int)Ne,
-                                                  (int)Nw));
-
-  // Compute stats (stacking Ne levels down to Nl according to c_idx)
-  standard_synthesizer_stats_gpu(ctx.gpu_stream(), d, eD.get(), Ne, Nh, Nl, Nw, c_idx, c_thick,
-                                 stats_std_cum, stats_lsq_cum);
+  img_ = create_buffer<T>(ctx_->allocators().gpu(),
+                          nPixel_ * nIntervals_ * nFilter_);
+  gpu::memset_async(img_.get(), 0, nPixel_ * nIntervals_ * nFilter_ * sizeof(T),
+                    ctx_->gpu_stream());
 }
 
-template auto standard_synthesizer_gpu<float>(ContextInternal& ctx, const float wl, const float* grid,
-                                              const float* xyz, const float* d, const gpu::ComplexType<float>* v, 
-                                              const gpu::ComplexType<float>* w,
-                                              const size_t* c_idx, const size_t* c_thick,
-                                              const size_t Na, const size_t Nb, const size_t Ne,
-                                              const size_t Nh, const size_t Nl,
-                                              const size_t Nws, const size_t Nwe, const size_t largest_chunck,
-                                              float* stats_std_cum, float* stats_lsq_cum) -> void;
+template <typename T>
+auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
+                                      int ldIntervals,
+                                      const gpu::ComplexType<T> *s, int lds,
+                                      const gpu::ComplexType<T> *w, int ldw,
+                                      const T *xyz, int ldxyz) -> void {
 
-template auto standard_synthesizer_gpu<double>(ContextInternal& ctx, const double wl, const double* grid,
-                                               const double* xyz, const double* d, const gpu::ComplexType<double>* v, 
-                                               const gpu::ComplexType<double>* w,
-                                               const size_t* c_idx, const size_t* c_thick,
-                                               const size_t Na, const size_t Nb, const size_t Ne,
-                                               const size_t Nh, const size_t Nl,
-                                               const size_t Nws, const size_t Nwe, const size_t largest_chunk,
-                                               double* stats_std_cum, double* stats_lsq_cum) -> void;
-}  // namespace bluebild
+  auto v = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
+                                              nBeam_ * nEig);
+  auto d = create_buffer<T>(ctx_->allocators().gpu(), nEig);
+  auto vUnbeam =
+      create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(), nAntenna_ * nEig);
+  auto unlayeredStats =
+      create_buffer<T>(ctx_->allocators().gpu(), nPixel_ * nEig);
+  auto indices = create_buffer<int>(ctx_->allocators().gpu(), nEig);
+  auto cluster =
+      create_buffer<T>(ctx_->allocators().gpu(),
+                       nIntervals_); // dummy input until
+                                     // intensity_field_data_host can be updated
+
+  if (s)
+    intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
+                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_,
+                              nIntervals_, cluster.get(), indices.get());
+  else
+    sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
+                               ldxyz, d.get(), v.get(), nBeam_);
+
+  gpu::ComplexType<T> one{1, 0};
+  gpu::ComplexType<T> zero{0, 0};
+  gpu::blas::check_status(gpu::blas::gemm(
+      ctx_->gpu_blas_handle(), gpu::blas::operation::None,
+      gpu::blas::operation::None, nAntenna_, nEig, nBeam_, &one, w, ldw,
+      v.get(), nBeam_, &zero, vUnbeam.get(), nAntenna_));
+
+  T alpha = 2.0 * M_PI / wl;
+  gemmexp_gpu<T>(ctx_->gpu_stream(), nEig, nPixel_, nAntenna_, alpha,
+                 vUnbeam.get(), nAntenna_, xyz, ldxyz, pixelX_.get(),
+                 pixelY_.get(), pixelZ_.get(), unlayeredStats.get(), nPixel_);
+
+  auto DBufferHost = create_buffer<T>(ctx_->allocators().pinned(), nEig);
+  auto DFilteredBufferHost = create_buffer<T>(ctx_->allocators().host(), nEig);
+  gpu::check_status(
+      gpu::memcpy_async(DBufferHost.get(), d.get(), nEig * sizeof(T),
+                        gpu::flag::MemcpyDeviceToHost, ctx_->gpu_stream()));
+  // Make sure D is available on host
+  gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream()));
+
+  auto filterHost = filterHost_.get();
+  for (std::size_t idxFilter = 0; idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
+    apply_filter(filterHost_.get()[idxFilter], nEig, d.get(), DFilteredBufferHost.get());
+
+    for (std::size_t idxInt = 0; idxInt < static_cast<std::size_t>(nIntervals_); ++idxInt) {
+      std::size_t start, size;
+      std::tie(start, size) = find_interval_indices(
+          nEig, DBufferHost.get(),
+          intervalsHost[idxInt * static_cast<std::size_t>(ldIntervals)],
+          intervalsHost[idxInt * static_cast<std::size_t>(ldIntervals) + 1]);
+
+      auto imgCurrent =
+          img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
+      for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
+        const auto scale = DFilteredBufferHost.get()[idxEig];
+        auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
+        gpu::blas::check_status(
+            gpu::blas::axpy(ctx_->gpu_blas_handle(), nPixel_, &scale,
+                            unlayeredStatsCurrent, 1, imgCurrent, 1));
+      }
+    }
+  }
+}
+
+template <typename T>
+auto StandardSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice, int ld) -> void {
+  int index = nFilter_;
+  const BluebildFilter *filterPtr = filterHost_.get();
+  for (int idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
+    if (filterPtr[idxFilter] == f) {
+      index = idxFilter;
+      break;
+    }
+  }
+  if (index == nFilter_)
+    throw InvalidParameterError();
+
+  gpu::check_status(gpu::memcpy_2d_async(
+      outHostOrDevice, ld * sizeof(T),
+      img_.get() + index * nIntervals_ * nPixel_, nPixel_ * sizeof(T),
+      nPixel_ * sizeof(T), nIntervals_, gpu::flag::MemcpyDefault,
+      ctx_->gpu_stream()));
+}
+
+template class StandardSynthesisGPU<float>;
+template class StandardSynthesisGPU<double>;
+
+} // namespace bluebild

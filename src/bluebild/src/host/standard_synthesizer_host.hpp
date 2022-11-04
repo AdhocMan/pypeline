@@ -5,31 +5,37 @@
 
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
+#include "memory/buffer.hpp"
 #include "context_internal.hpp"
 
 namespace bluebild {
 
-template <typename T>
-auto mean_center(T* __restrict__ xyz, const T* __restrict__ xyz_, const size_t N) -> void;
+template <typename T> class StandardSynthesisHost {
+public:
+  StandardSynthesisHost(std::shared_ptr<ContextInternal> ctx,
+                        std::size_t nAntenna, std::size_t nBeam,
+                        std::size_t nIntervals, std::size_t nFilter,
+                        const BluebildFilter *filter, std::size_t nPixel,
+                        const T *pixelX, const T *pixelY, const T *pixelZ);
 
+  auto collect(std::size_t nEig, T wl, const T *intervals,
+               std::size_t ldIntervals, const std::complex<T> *s,
+               std::size_t lds, const std::complex<T> *w, std::size_t ldw,
+               const T *xyz, std::size_t ldxyz) -> void;
 
-template <typename T>
-auto standard_synthesizer_host(ContextInternal& ctx,
-                               const T* __restrict__ d,
-                               const std::complex<T>* __restrict__ v,
-                               const T* __restrict__ xyz,
-                               const std::complex<T>* __restrict__ w,
-                               const std::size_t* __restrict__ c_idx,
-                               const std::size_t Nl,
-                               const T* __restrict__ grid,
-                               const T wl,
-                               const std::size_t Na,
-                               const std::size_t Nb,
-                               const std::size_t Nc,
-                               const std::size_t Ne,
-                               const std::size_t Nh,
-                               const std::size_t Nw,
-                               T* __restrict__ stats_std_cum,
-                               T* __restrict__ stats_lsq_cum) -> void;
+  auto get(BluebildFilter f, T* out, std::size_t ld) -> void;
+
+  auto context() -> ContextInternal & { return *ctx_; }
+
+private:
+  auto computeNufft() -> void;
+
+  std::shared_ptr<ContextInternal> ctx_;
+  const std::size_t nIntervals_, nFilter_, nPixel_, nAntenna_, nBeam_;
+  BufferType<BluebildFilter> filter_;
+  BufferType<T> pixelX_, pixelY_, pixelZ_;
+  BufferType<T> img_;
+
+};
 
 }  // namespace bluebild

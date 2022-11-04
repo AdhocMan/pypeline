@@ -9,6 +9,7 @@
 #include "bluebild/config.h"
 #include "memory/buffer.hpp"
 #include "host/blas_api.hpp"
+#include "util.hpp"
 
 namespace bluebild {
 

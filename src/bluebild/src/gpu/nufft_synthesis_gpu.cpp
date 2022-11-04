@@ -154,7 +154,7 @@ template <typename T> auto NufftSynthesisGPU<T>::computeNufft() -> void {
                           outputPtr);
 
         // use default stream to match cufiNUFFT
-        gpu::add_vector<T>(nullptr, nPixel_, outputPtr, imgPtr);
+        gpu::add_vector_real<T>(nullptr, nPixel_, outputPtr, imgPtr);
       }
     }
   }
