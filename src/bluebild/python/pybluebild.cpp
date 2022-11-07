@@ -8,6 +8,7 @@
 #include <tuple>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 #include "bluebild/bluebild.hpp"
 
@@ -57,6 +58,46 @@ auto check_3d_array(const py::array_t<T, STYLE> &a,
     throw InvalidParameterError();
   if (shape[2] && a.shape(2) != shape[2])
     throw InvalidParameterError();
+}
+
+
+auto string_to_processing_unit(const std::string& pu) -> BluebildProcessingUnit {
+  if (pu == "CPU" || pu == "cpu")
+    return BLUEBILD_PU_CPU;
+  if (pu == "GPU" || pu == "gpu")
+    return BLUEBILD_PU_GPU;
+  if (pu == "AUTO" && pu == "auto")
+    return BLUEBILD_PU_AUTO;
+
+  throw InvalidParameterError();
+}
+
+auto string_to_filter(const std::string& f) -> BluebildFilter {
+  if (f == "LSQ" || f == "lsq")
+    return BLUEBILD_FILTER_LSQ;
+  if (f == "STD" || f == "std")
+    return BLUEBILD_FILTER_STD;
+  if (f == "SQRT" || f == "sqrt")
+    return BLUEBILD_FILTER_SQRT;
+  if (f == "INV" || f == "inv")
+    return BLUEBILD_FILTER_INV;
+
+  throw InvalidParameterError();
+}
+
+auto processing_unit_to_string(BluebildProcessingUnit pu) -> std::string {
+  if (pu == BLUEBILD_PU_CPU)
+    return "CPU";
+  if (pu == BLUEBILD_PU_GPU)
+    return "GPU";
+  if (pu == BLUEBILD_PU_AUTO)
+    return "AUTO";
+
+  throw InvalidParameterError();
+}
+
+auto create_context(const std::string& pu) -> Context {
+  return Context(string_to_processing_unit(pu));
 }
 
 template <typename T>
@@ -277,10 +318,14 @@ struct StandardSynthesisDispatcher {
 
   StandardSynthesisDispatcher(
       Context &ctx, int nAntenna, int nBeam, int nIntervals,
-      const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
+      const std::vector<std::string> &filter,
       const py::array &pixelX, const py::array &pixelY, const py::array &pixelZ,
       const std::string &precision)
       : nIntervals_(nIntervals), nPixel_(pixelX.shape(0)) {
+    std::vector<BluebildFilter> filterEnums;
+    for (const auto &f : filter) {
+      filterEnums.emplace_back(string_to_filter(f));
+    }
     if (precision == "single" || precision == "SINGLE") {
       py::array_t<float, pybind11::array::f_style | py::array::forcecast>
           pixelXArray(pixelX);
@@ -288,14 +333,13 @@ struct StandardSynthesisDispatcher {
           pixelYArray(pixelY);
       py::array_t<float, pybind11::array::f_style | py::array::forcecast>
           pixelZArray(pixelZ);
-      check_1d_array(filter);
       check_1d_array(pixelXArray);
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
       plan_ = StandardSynthesis<float>(
-          ctx, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
-          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0),
-          pixelZArray.data(0));
+          ctx, nAntenna, nBeam, nIntervals, filterEnums.size(),
+          filterEnums.data(), pixelXArray.shape(0), pixelXArray.data(0),
+          pixelYArray.data(0), pixelZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast>
           pixelXArray(pixelX);
@@ -303,14 +347,13 @@ struct StandardSynthesisDispatcher {
           pixelYArray(pixelY);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast>
           pixelZArray(pixelZ);
-      check_1d_array(filter);
       check_1d_array(pixelXArray);
       check_1d_array(pixelYArray, pixelXArray.shape(0));
       check_1d_array(pixelZArray, pixelXArray.shape(0));
       plan_ = StandardSynthesis<double>(
-          ctx, nAntenna, nBeam, nIntervals, filter.shape(0), filter.data(0),
-          pixelXArray.shape(0), pixelXArray.data(0), pixelYArray.data(0),
-          pixelZArray.data(0));
+          ctx, nAntenna, nBeam, nIntervals, filterEnums.size(),
+          filterEnums.data(), pixelXArray.shape(0), pixelXArray.data(0),
+          pixelYArray.data(0), pixelZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -375,7 +418,8 @@ struct StandardSynthesisDispatcher {
         plan_);
   }
 
-  auto get(BluebildFilter f) -> py::array {
+  auto get(const std::string& fString) -> py::array {
+    const auto f = string_to_filter(fString);
     return std::visit(
         [&](auto &&arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
@@ -411,10 +455,14 @@ struct NufftSynthesisDispatcher {
 
   NufftSynthesisDispatcher(
       Context &ctx, int nAntenna, int nBeam, int nIntervals,
-      const py::array_t<BluebildFilter, pybind11::array::f_style> &filter,
+      const std::vector<std::string> &filter,
       const py::array &lmnX, const py::array &lmnY, const py::array &lmnZ,
       const std::string &precision, double tol)
       : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
+    std::vector<BluebildFilter> filterEnums;
+    for (const auto &f : filter) {
+      filterEnums.emplace_back(string_to_filter(f));
+    }
     if (precision == "single" || precision == "SINGLE") {
       py::array_t<float, pybind11::array::f_style | py::array::forcecast>
           lmnXArray(lmnX);
@@ -422,14 +470,13 @@ struct NufftSynthesisDispatcher {
           lmnYArray(lmnY);
       py::array_t<float, pybind11::array::f_style | py::array::forcecast>
           lmnZArray(lmnZ);
-      check_1d_array(filter);
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
       plan_ = NufftSynthesis<float>(ctx, tol, nAntenna, nBeam, nIntervals,
-                                       filter.shape(0), filter.data(0),
-                                       lmnXArray.shape(0), lmnXArray.data(0),
-                                       lmnYArray.data(0), lmnZArray.data(0));
+                                    filterEnums.size(), filterEnums.data(),
+                                    lmnXArray.shape(0), lmnXArray.data(0),
+                                    lmnYArray.data(0), lmnZArray.data(0));
     } else if (precision == "double" || precision == "DOUBLE") {
       py::array_t<double, pybind11::array::f_style | py::array::forcecast>
           lmnXArray(lmnX);
@@ -437,14 +484,13 @@ struct NufftSynthesisDispatcher {
           lmnYArray(lmnY);
       py::array_t<double, pybind11::array::f_style | py::array::forcecast>
           lmnZArray(lmnZ);
-      check_1d_array(filter);
       check_1d_array(lmnXArray);
       check_1d_array(lmnYArray, lmnXArray.shape(0));
       check_1d_array(lmnZArray, lmnXArray.shape(0));
       plan_ = NufftSynthesis<double>(ctx, tol, nAntenna, nBeam, nIntervals,
-                                       filter.shape(0), filter.data(0),
-                                       lmnXArray.shape(0), lmnXArray.data(0),
-                                       lmnYArray.data(0), lmnZArray.data(0));
+                                     filterEnums.size(), filterEnums.data(),
+                                     lmnXArray.shape(0), lmnXArray.data(0),
+                                     lmnYArray.data(0), lmnZArray.data(0));
     } else {
       throw InvalidParameterError();
     }
@@ -520,7 +566,8 @@ struct NufftSynthesisDispatcher {
         plan_);
   }
 
-  auto get(BluebildFilter f) -> py::array {
+  auto get(const std::string& fString) -> py::array {
+    const auto f = string_to_filter(fString);
     return std::visit(
         [&](auto &&arg) -> pybind11::array {
           using T = std::decay_t<decltype(arg)>;
@@ -553,6 +600,7 @@ struct NufftSynthesisDispatcher {
 
 
 
+
 } // namespace
 
 // Create module
@@ -570,22 +618,12 @@ PYBIND11_MODULE(pybluebild, m) {
 #else
   m.attr("__version__") = "dev";
 #endif
-
-  py::enum_<BluebildProcessingUnit>(m, "ProcessingUnit")
-      .value("AUTO", BLUEBILD_PU_AUTO)
-      .value("CPU", BLUEBILD_PU_CPU)
-      .value("GPU", BLUEBILD_PU_GPU);
-
-  py::enum_<BluebildFilter>(m, "Filter")
-      .value("LSQ", BLUEBILD_FILTER_LSQ)
-      .value("STD", BLUEBILD_FILTER_STD)
-      .value("SQRT", BLUEBILD_FILTER_SQRT)
-      .value("INV", BLUEBILD_FILTER_INV);
-
   pybind11::class_<Context>(m, "Context")
-      .def(pybind11::init<BluebildProcessingUnit>(),
-           pybind11::arg("pu").noconvert())
-      .def("processing_unit", &Context::processing_unit)
+      .def(py::init(&create_context), pybind11::arg("pu"))
+      .def("processing_unit",
+           [](const Context &ctx) {
+             return processing_unit_to_string(ctx.processing_unit());
+           })
       .def(
           "gram_matrix",
           [](Context &ctx,
@@ -661,7 +699,8 @@ PYBIND11_MODULE(pybluebild, m) {
              const py::array_t<float, py::array::c_style> &intervals,
              const py::array_t<float, py::array::f_style> &d,
              const py::array_t<std::complex<float>, py::array::f_style> &v,
-             std::optional<py::array_t<std::complex<float>, py::array::f_style>> w) {
+             std::optional<py::array_t<std::complex<float>, py::array::f_style>>
+                 w) {
             return call_virtual_vis(ctx, filter, intervals, d, v, w);
           },
           pybind11::arg("filter"), pybind11::arg("intervals"),
@@ -673,7 +712,9 @@ PYBIND11_MODULE(pybluebild, m) {
              const py::array_t<double, py::array::c_style> &intervals,
              const py::array_t<double, py::array::f_style> &d,
              const py::array_t<std::complex<double>, py::array::f_style> &v,
-             std::optional<py::array_t<std::complex<double>, py::array::f_style>> w) {
+             std::optional<
+                 py::array_t<std::complex<double>, py::array::f_style>>
+                 w) {
             return call_virtual_vis(ctx, filter, intervals, d, v, w);
           },
           pybind11::arg("filter"), pybind11::arg("intervals"),
@@ -707,27 +748,25 @@ PYBIND11_MODULE(pybluebild, m) {
       .def("execute", &Nufft3d3Dispatcher::execute, pybind11::arg("cj"));
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
-      .def(pybind11::init<
-               Context &, int, int, int,
-               const py::array_t<BluebildFilter, pybind11::array::f_style> &,
-               const py::array &, const py::array &, const py::array &,
-               const std::string &, double>(),
+      .def(pybind11::init<Context &, int, int, int,
+                          const std::vector<std::string> &, const py::array &,
+                          const py::array &, const py::array &,
+                          const std::string &, double>(),
            pybind11::arg("ctx"), pybind11::arg("n_antenna"),
            pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"), pybind11::arg("tol"))
-      .def("collect", &NufftSynthesisDispatcher::collect,
-           pybind11::arg("nEig"), pybind11::arg("wl"),
-           pybind11::arg("intervals"), pybind11::arg("w"), pybind11::arg("xyz"),
-           pybind11::arg("uvwX"), pybind11::arg("uvwY"), pybind11::arg("uvwY"),
-           pybind11::arg("s"))
+      .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("nEig"),
+           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
+           pybind11::arg("xyz"), pybind11::arg("uvwX"), pybind11::arg("uvwY"),
+           pybind11::arg("uvwY"), pybind11::arg("s"))
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
       .def(pybind11::init<
                Context &, int, int, int,
-               const py::array_t<BluebildFilter, pybind11::array::f_style> &,
+               const std::vector<std::string> &,
                const py::array &, const py::array &, const py::array &,
                const std::string &>(),
            pybind11::arg("ctx"), pybind11::arg("n_antenna"),
