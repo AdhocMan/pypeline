@@ -68,11 +68,7 @@ auto StandardSynthesisHost<T>::collect(
       create_buffer<T>(ctx_->allocators().host(), nPixel_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().host(), nEig);
   auto dFiltered = create_buffer<T>(ctx_->allocators().host(), nEig);
-  auto indices = create_buffer<int>(ctx_->allocators().host(), nEig);
-  auto cluster =
-      create_buffer<T>(ctx_->allocators().host(),
-                       nIntervals_); // dummy input until
-                                     // intensity_field_data_host can be updated
+
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = create_buffer<T>(ctx_->allocators().host(), 3 * nAntenna_);
   center_vector(nAntenna_, xyz, xyzCentered.get());
@@ -81,9 +77,8 @@ auto StandardSynthesisHost<T>::collect(
 
   if (s)
     intensity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyzCentered.get(), nAntenna_, d.get(), v.get(),
-                              nBeam_, nIntervals_, cluster.get(),
-                              indices.get());
+                              ldw, xyzCentered.get(), nAntenna_, d.get(),
+                              v.get(), nBeam_);
   else
     sensitivity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw,
                                 xyzCentered.get(), nAntenna_, d.get(), v.get(),

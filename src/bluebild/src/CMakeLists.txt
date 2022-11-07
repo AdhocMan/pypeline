@@ -33,7 +33,6 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/util/solver_api.cpp
 		gpu/kernels/reverse.cu
 		gpu/kernels/inv_square.cu
-		gpu/kernels/min_diff.cu
 		gpu/kernels/gram.cu
 		gpu/kernels/scale_matrix.cu
 		gpu/kernels/apply_filter.cu

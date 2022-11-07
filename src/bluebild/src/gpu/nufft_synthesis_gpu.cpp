@@ -90,16 +90,10 @@ auto NufftSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
   auto v = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
                                               nBeam_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().gpu(), nEig);
-  auto indices = create_buffer<int>(ctx_->allocators().gpu(), nEig);
-  auto cluster =
-      create_buffer<T>(ctx_->allocators().gpu(),
-                       nIntervals_); // dummy input until
-                                     // intensity_field_data_host can be updated
 
   if (s)
-    intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_,
-                              nIntervals_, cluster.get(), indices.get());
+    intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w, ldw,
+                             xyz, ldxyz, d.get(), v.get(), nBeam_);
   else
     sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
                                 ldxyz, d.get(), v.get(), nBeam_);

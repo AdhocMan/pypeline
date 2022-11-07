@@ -23,8 +23,7 @@ BLUEBILD_EXPORT auto
 intensity_field_data(Context &ctx, T wl, int m, int n, int nEig,
                      const std::complex<T> *s, int lds,
                      const std::complex<T> *w, int ldw, const T *xyz, int ldxyz,
-                     T *d, std::complex<T> *v, int ldv, int nCluster,
-                     const T *cluster, int *clusterIndices) -> void {
+                     T *d, std::complex<T> *v, int ldv) -> void {
 
   auto &ctxInternal = *InternalContextAccessor::get(ctx);
   if (ctxInternal.processing_unit() == BLUEBILD_PU_GPU) {
@@ -33,15 +32,12 @@ intensity_field_data(Context &ctx, T wl, int m, int n, int nEig,
     gpu::check_status(gpu::stream_synchronize(nullptr));
 
     BufferType<gpu::ComplexType<T>> sBuffer, wBuffer, vBuffer;
-    BufferType<T> dBuffer, xyzBuffer, clusterBuffer;
-    BufferType<int> clusterIndicesBuffer;
+    BufferType<T> dBuffer, xyzBuffer;
     auto wDevice = reinterpret_cast<const gpu::ComplexType<T> *>(w);
     auto sDevice = reinterpret_cast<const gpu::ComplexType<T> *>(s);
     auto vDevice = reinterpret_cast<gpu::ComplexType<T> *>(v);
     auto xyzDevice = xyz;
     auto dDevice = d;
-    auto clusterDevice = cluster;
-    auto clusterIndicesDevice = clusterIndices;
     int ldwDevice = ldw;
     int ldsDevice = lds;
     int ldvDevice = ldv;
@@ -77,14 +73,6 @@ intensity_field_data(Context &ctx, T wl, int m, int n, int nEig,
           xyzBuffer.get(), m * sizeof(T), xyz, ldxyz * sizeof(T), m * sizeof(T),
           3, gpu::flag::MemcpyDefault, ctxInternal.gpu_stream()));
     }
-    if (!is_device_ptr(cluster)) {
-      clusterBuffer =
-          create_buffer<T>(ctxInternal.allocators().gpu(), nCluster);
-      clusterDevice = clusterBuffer.get();
-      gpu::check_status(gpu::memcpy_async(
-          clusterBuffer.get(), cluster, nCluster * sizeof(T),
-          gpu::flag::MemcpyHostToDevice, ctxInternal.gpu_stream()));
-    }
 
     // prepare output
     if (!is_device_ptr(v)) {
@@ -98,17 +86,10 @@ intensity_field_data(Context &ctx, T wl, int m, int n, int nEig,
       dDevice = dBuffer.get();
     }
 
-    if (!is_device_ptr(clusterIndices)) {
-      clusterIndicesBuffer =
-          create_buffer<int>(ctxInternal.allocators().gpu(), nEig);
-      clusterIndicesDevice = clusterIndicesBuffer.get();
-    }
-
     // call intensity_field_data on gpu
     intensity_field_data_gpu<T>(ctxInternal, wl, m, n, nEig, sDevice, ldsDevice,
                                 wDevice, ldwDevice, xyzDevice, ldxyzDevice,
-                                dDevice, vDevice, ldvDevice, nCluster,
-                                clusterDevice, clusterIndicesDevice);
+                                dDevice, vDevice, ldvDevice);
 
     // copy back if required
     if (dBuffer) {
@@ -123,11 +104,6 @@ intensity_field_data(Context &ctx, T wl, int m, int n, int nEig,
           n * sizeof(gpu::ComplexType<T>), nEig, gpu::flag::MemcpyDeviceToHost,
           ctxInternal.gpu_stream()));
     }
-    if (clusterIndicesBuffer) {
-      gpu::check_status(gpu::memcpy_async(
-          clusterIndices, clusterIndicesBuffer.get(), nEig * sizeof(int),
-          gpu::flag::MemcpyDefault, ctxInternal.gpu_stream()));
-    }
 
     // syncronize with stream to be synchronous with host
     gpu::check_status(gpu::stream_synchronize(ctxInternal.gpu_stream()));
@@ -137,8 +113,7 @@ intensity_field_data(Context &ctx, T wl, int m, int n, int nEig,
 #endif
   } else {
     intensity_field_data_host<T>(ctxInternal, wl, m, n, nEig, s, lds, w, ldw,
-                                 xyz, ldxyz, d, v, ldv, nCluster, cluster,
-                                 clusterIndices);
+                                 xyz, ldxyz, d, v, ldv);
   }
 }
 
@@ -146,23 +121,21 @@ template auto intensity_field_data(Context &ctx, float wl, int m, int n,
                                    int nEig, const std::complex<float> *s,
                                    int lds, const std::complex<float> *w,
                                    int ldw, const float *xyz, int ldxyz,
-                                   float *d, std::complex<float> *v, int ldv,
-                                   int nCluster, const float *cluster,
-                                   int *clusterIndices) -> void;
+                                   float *d, std::complex<float> *v, int ldv)
+    -> void;
 
 template auto intensity_field_data(Context &ctx, double wl, int m, int n,
                                    int nEig, const std::complex<double> *s,
                                    int lds, const std::complex<double> *w,
                                    int ldw, const double *xyz, int ldxyz,
-                                   double *d, std::complex<double> *v, int ldv,
-                                   int nCluster, const double *cluster,
-                                   int *clusterIndices) -> void;
+                                   double *d, std::complex<double> *v, int ldv)
+    -> void;
 
 extern "C" {
 BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_s(
     BluebildContext ctx, float wl, int m, int n, int nEig, const void *s,
     int lds, const void *w, int ldw, const float *xyz, int ldxyz, float *d,
-    void *v, int ldv, int nCluster, const float *cluster, int *clusterIndices) {
+    void *v, int ldv) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
@@ -171,8 +144,7 @@ BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_s(
         *reinterpret_cast<Context *>(ctx), wl, m, n, nEig,
         reinterpret_cast<const std::complex<float> *>(s), lds,
         reinterpret_cast<const std::complex<float> *>(w), ldw, xyz, ldxyz, d,
-        reinterpret_cast<std::complex<float> *>(v), ldv, nCluster, cluster,
-        clusterIndices);
+        reinterpret_cast<std::complex<float> *>(v), ldv);
   } catch (const bluebild::GenericError &e) {
     return e.error_code();
   } catch (...) {
@@ -184,8 +156,7 @@ BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_s(
 BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_d(
     BluebildContext ctx, double wl, int m, int n, int nEig, const void *s,
     int lds, const void *w, int ldw, const double *xyz, int ldxyz, double *d,
-    void *v, int ldv, int nCluster, const double *cluster,
-    int *clusterIndices) {
+    void *v, int ldv) {
   if (!ctx) {
     return BLUEBILD_INVALID_HANDLE_ERROR;
   }
@@ -194,8 +165,7 @@ BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_d(
         *reinterpret_cast<Context *>(ctx), wl, m, n, nEig,
         reinterpret_cast<const std::complex<double> *>(s), lds,
         reinterpret_cast<const std::complex<double> *>(w), ldw, xyz, ldxyz, d,
-        reinterpret_cast<std::complex<double> *>(v), ldv, nCluster, cluster,
-        clusterIndices);
+        reinterpret_cast<std::complex<double> *>(v), ldv);
   } catch (const bluebild::GenericError &e) {
     return e.error_code();
   } catch (...) {

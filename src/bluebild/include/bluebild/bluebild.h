@@ -92,15 +92,12 @@ BLUEBILD_EXPORT BluebildError bluebild_eigh_d(BluebildContext ctx, int m, int nE
  * @param[out] d Eigenvalues.
  * @param[out] v Eigenvectors stored as Matrix coloumns.
  * @param[out] ldv Leading of V.
- * @param[out] nCluster Number of eigenpairs to output after PCA decomposition.
- * @param[in] cluster Intensity centroids for energy-level clustering.
- * @param[out] clusterIndices Cluster indices of each eigenpair.
  * @return Error code or BLUEBILD_SUCCESS.
  */
 BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_s(
-    BluebildContext ctx, float wl, int m, int n, int nEig, const void* s, int lds, const void* w,
-    int ldw, const float* xyz, int ldxyz, float* d, void* v, int ldv, int nCluster,
-    const float* cluster, int* clusterIndices);
+    BluebildContext ctx, float wl, int m, int n, int nEig, const void *s,
+    int lds, const void *w, int ldw, const float *xyz, int ldxyz, float *d,
+    void *v, int ldv);
 
 /**
  * fPCA decomposition and data formatting for intensity field in double precision.
@@ -120,15 +117,11 @@ BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_s(
  * @param[out] d Eigenvalues.
  * @param[out] v Eigenvectors stored as Matrix coloumns.
  * @param[out] ldv Leading of V.
- * @param[out] nCluster Number of eigenpairs to output after PCA decomposition.
- * @param[in] cluster Intensity centroids for energy-level clustering.
- * @param[out] clusterIndices Cluster indices of each eigenpair.
  * @return Error code or BLUEBILD_SUCCESS.
  */
 BLUEBILD_EXPORT BluebildError bluebild_intensity_field_data_d(
     BluebildContext ctx, double wl, int m, int n, int nEig, const void* s, int lds, const void* w,
-    int ldw, const double* xyz, int ldxyz, double* d, void* v, int ldv, int nCluster,
-    const double* cluster, int* clusterIndices);
+    int ldw, const double* xyz, int ldxyz, double* d, void* v, int ldv);
 
 /**
  * Data processor for computing sensitivity fields in single precision.

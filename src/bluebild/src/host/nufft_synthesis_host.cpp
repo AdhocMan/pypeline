@@ -83,16 +83,10 @@ auto NufftSynthesisHost<T>::collect(
   auto v =
       create_buffer<std::complex<T>>(ctx_->allocators().host(), nBeam_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().host(), nEig);
-  auto indices = create_buffer<int>(ctx_->allocators().host(), nEig);
-  auto cluster =
-      create_buffer<T>(ctx_->allocators().host(),
-                       nIntervals_); // dummy input until
-                                     // intensity_field_data_host can be updated
 
   if (s)
     intensity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_,
-                              nIntervals_, cluster.get(), indices.get());
+                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_);
   else
     sensitivity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
                                 ldxyz, d.get(), v.get(), nBeam_);

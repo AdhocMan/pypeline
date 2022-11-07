@@ -145,16 +145,13 @@ auto call_intensity_field_data(
     Context &ctx, T wl, long nEig,
     const py::array_t<T, py::array::f_style> &xyz,
     const py::array_t<std::complex<T>, py::array::f_style> &w,
-    const py::array_t<std::complex<T>, py::array::f_style> &s,
-    const py::array_t<T, py::array::f_style> &centroids) {
+    const py::array_t<std::complex<T>, py::array::f_style> &s) {
   check_2d_array(w);
   check_2d_array(xyz, {w.shape(0), 3});
   check_2d_array(s, {w.shape(1), w.shape(1)});
-  check_1d_array(centroids);
 
   auto v = py::array_t<std::complex<T>, py::array::f_style>({w.shape(1), nEig});
   auto d = py::array_t<T>(nEig);
-  auto clusterIndices = py::array_t<int>(nEig);
 
   intensity_field_data(
       ctx, wl, safe_cast<int>(w.shape(0)), safe_cast<int>(w.shape(1)),
@@ -162,10 +159,9 @@ auto call_intensity_field_data(
       safe_cast<int>(s.strides(1) / s.itemsize()), w.data(0),
       safe_cast<int>(w.strides(1) / w.itemsize()), xyz.data(0),
       safe_cast<int>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
-      v.mutable_data(0), safe_cast<int>(v.strides(1) / v.itemsize()),
-      centroids.shape(0), centroids.data(0), clusterIndices.mutable_data(0));
+      v.mutable_data(0), safe_cast<int>(v.strides(1) / v.itemsize()));
 
-  return std::make_tuple(std::move(d), std::move(v), std::move(clusterIndices));
+  return std::make_tuple(std::move(d), std::move(v));
 }
 
 template <typename T>
@@ -670,13 +666,11 @@ PYBIND11_MODULE(pybluebild, m) {
                  &w,
              float wl,
              const py::array_t<std::complex<float>, pybind11::array::f_style>
-                 &s,
-             const py::array_t<float, pybind11::array::f_style> &centroids) {
-            return call_intensity_field_data(ctx, wl, nEig, xyz, w, s,
-                                             centroids);
+                 &s) {
+            return call_intensity_field_data(ctx, wl, nEig, xyz, w, s);
           },
           pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"), pybind11::arg("S"), pybind11::arg("centroids"))
+          pybind11::arg("wl"), pybind11::arg("S"))
       .def(
           "intensity_field_data",
           [](Context &ctx, long nEig,
@@ -685,13 +679,11 @@ PYBIND11_MODULE(pybluebild, m) {
                  &w,
              double wl,
              const py::array_t<std::complex<double>, pybind11::array::f_style>
-                 &s,
-             const py::array_t<double, pybind11::array::f_style> &centroids) {
-            return call_intensity_field_data(ctx, wl, nEig, xyz, w, s,
-                                             centroids);
+                 &s) {
+            return call_intensity_field_data(ctx, wl, nEig, xyz, w, s);
           },
           pybind11::arg("n_eig"), pybind11::arg("XYZ"), pybind11::arg("W"),
-          pybind11::arg("wl"), pybind11::arg("S"), pybind11::arg("centroids"))
+          pybind11::arg("wl"), pybind11::arg("S"))
       .def(
           "virtual_vis",
           [](Context &ctx,
@@ -757,25 +749,30 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"), pybind11::arg("tol"))
-      .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("nEig"),
-           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
-           pybind11::arg("xyz"), pybind11::arg("uvwX"), pybind11::arg("uvwY"),
-           pybind11::arg("uvwY"), pybind11::arg("s"))
+      .def(
+          "collect", &NufftSynthesisDispatcher::collect, pybind11::arg("nEig"),
+          pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
+          pybind11::arg("xyz"), pybind11::arg("uvwX"), pybind11::arg("uvwY"),
+          pybind11::arg("uvwY"),
+          pybind11::arg("s") =
+              std::optional<pybind11::array>())
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
-      .def(pybind11::init<
-               Context &, int, int, int,
-               const std::vector<std::string> &,
-               const py::array &, const py::array &, const py::array &,
-               const std::string &>(),
+      .def(pybind11::init<Context &, int, int, int,
+                          const std::vector<std::string> &, const py::array &,
+                          const py::array &, const py::array &,
+                          const std::string &>(),
            pybind11::arg("ctx"), pybind11::arg("n_antenna"),
            pybind11::arg("n_beam"), pybind11::arg("n_intervals"),
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"))
-      .def("collect", &StandardSynthesisDispatcher::collect, pybind11::arg("nEig"),
-           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
-           pybind11::arg("xyz"), pybind11::arg("s"))
+      .def(
+          "collect", &StandardSynthesisDispatcher::collect,
+          pybind11::arg("nEig"), pybind11::arg("wl"),
+          pybind11::arg("intervals"), pybind11::arg("w"), pybind11::arg("xyz"),
+          pybind11::arg("s") =
+              std::optional<pybind11::array>())
       .def("get", &StandardSynthesisDispatcher::get, pybind11::arg("f"));
 }

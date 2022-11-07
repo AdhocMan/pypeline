@@ -62,11 +62,6 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
       create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(), nAntenna_ * nEig);
   auto unlayeredStats =
       create_buffer<T>(ctx_->allocators().gpu(), nPixel_ * nEig);
-  auto indices = create_buffer<int>(ctx_->allocators().gpu(), nEig);
-  auto cluster =
-      create_buffer<T>(ctx_->allocators().gpu(),
-                       nIntervals_); // dummy input until
-                                     // intensity_field_data_host can be updated
 
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_);
@@ -84,7 +79,7 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
   if (s)
     intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w, ldw,
                              xyzCentered.get(), nAntenna_, d.get(), v.get(),
-                             nBeam_, nIntervals_, cluster.get(), indices.get());
+                             nBeam_);
   else
     sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw,
                                xyzCentered.get(), nAntenna_, d.get(), v.get(),
