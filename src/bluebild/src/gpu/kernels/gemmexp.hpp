@@ -1,6 +1,5 @@
 #pragma once
 
-#include <complex>
 #include "gpu/util/gpu_runtime_api.hpp"
 
 namespace bluebild{

@@ -27,19 +27,20 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
       for (std::size_t idxAnt = 0; idxAnt < nAntenna; ++idxAnt) {
         const auto imag = alpha * (pX * xyz[idxAnt] + pY * xyz[idxAnt + ldxyz] +
                                    pZ * xyz[idxAnt + 2 * ldxyz]);
-#ifndef __INTEL_COMPILER
-            marla_sincos(imag, &sinValue, &cosValue);
-#else
-            sinValue = std::sin(imag);
-            cosValue = std::cos(imag);
-#endif
-            pixSum += vUnbeam[idxEig * ldv + idxAnt] *
-                      std::complex<T>(cosValue, sinValue);
-          }
-          out[idxEig * ldout + idxPix] =
-              pixSum.real() * pixSum.real() + pixSum.imag() * pixSum.imag();
-        }
+        // TODO: marla seems to be slower?
+// #ifndef __INTEL_COMPILER
+//         marla_sincos(imag, &sinValue, &cosValue);
+// #else
+        sinValue = std::sin(imag);
+        cosValue = std::cos(imag);
+// #endif
+        pixSum += vUnbeam[idxEig * ldv + idxAnt] *
+                  std::complex<T>(cosValue, sinValue);
+      }
+      out[idxEig * ldout + idxPix] =
+          pixSum.real() * pixSum.real() + pixSum.imag() * pixSum.imag();
     }
+  }
 }
 
 template auto

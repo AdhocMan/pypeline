@@ -1,6 +1,3 @@
-#include <algorithm>
-#include <complex>
-
 #include "bluebild/config.h"
 #include "gpu/kernels/gemmexp.hpp"
 #include "gpu/util/gpu_runtime.hpp"
@@ -10,22 +7,22 @@
 
 namespace bluebild {
 
-static __device__ __forceinline__
-void calc_sincos(float x, float* sptr, float* cptr) {
-    sincosf(x, sptr, cptr);
+static __device__ __forceinline__ void calc_sincos(float x, float *sptr,
+                                                   float *cptr) {
+  sincosf(x, sptr, cptr);
 }
 
-static __device__ __forceinline__
-void calc_sincos(double x, double* sptr, double* cptr) {
-    sincos(x, sptr, cptr);
+static __device__ __forceinline__ void calc_sincos(double x, double *sptr,
+                                                   double *cptr) {
+  sincos(x, sptr, cptr);
 }
-
 
 namespace {
 template <typename T> struct ComplexOp {
   __device__ __forceinline__ ComplexOp() = default;
   __device__ __forceinline__ ComplexOp(T x_, T y_) : x(x_), y(y_) {}
-  __device__ __forceinline__ ComplexOp(const gpu::ComplexType<T>& c) : x(c.x), y(c.y) {}
+  __device__ __forceinline__ ComplexOp(const gpu::ComplexType<T> &c)
+      : x(c.x), y(c.y) {}
 
   __device__ __forceinline__ ComplexOp<T>
   operator-(const ComplexOp<T> &other) const {
@@ -95,7 +92,7 @@ auto gemmexp_gpu(gpu::StreamType stream, int nEig, int nPixel, int nAntenna,
 
   gpu::launch_kernel(
       gemmexp_kernel<T, blockSize,
-                cub::BlockReduceAlgorithm::BLOCK_REDUCE_WARP_REDUCTIONS>,
+                     cub::BlockReduceAlgorithm::BLOCK_REDUCE_WARP_REDUCTIONS>,
       grid, block, 0, stream, nEig, nPixel, nAntenna, alpha, vUnbeam, ldv, xyz,
       ldxyz, pixelX, pixelY, pixelZ, out, ldout);
 }
@@ -114,4 +111,4 @@ template auto gemmexp_gpu<double>(
     const double *__restrict__ pixelX, const double *__restrict__ pixelY,
     const double *__restrict__ pixelZ, double *__restrict__ out, int ldout)
     -> void;
-}  // namespace bluebild
+} // namespace bluebild

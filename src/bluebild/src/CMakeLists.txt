@@ -39,6 +39,7 @@ if(BLUEBILD_CUDA OR BLUEBILD_ROCM)
 		gpu/kernels/apply_filter.cu
 		gpu/kernels/add_vector.cu
 		gpu/kernels/gemmexp.cu
+		gpu/kernels/center_vector.cu
 		)
 endif()
 

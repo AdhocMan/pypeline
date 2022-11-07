@@ -3,7 +3,7 @@
 #include <complex>
 #include <complex.h>
 #include <iostream>
-#include <omp.h>
+#include <algorithm>
 
 #include "bluebild/bluebild.h"
 #include "bluebild/config.h"
@@ -18,6 +18,19 @@
 
 
 namespace bluebild {
+
+template <typename T>
+static auto center_vector(std::size_t n, const T *__restrict__ in,
+                          T *__restrict__ out) -> void {
+  T mean = 0;
+  for (std::size_t i = 0; i < n; ++i) {
+    mean += in[i];
+  }
+  mean /= n;
+  for (std::size_t i = 0; i < n; ++i) {
+    out[i] = in[i] - mean;
+  }
+}
 
 template <typename T>
 StandardSynthesisHost<T>::StandardSynthesisHost(
@@ -60,26 +73,32 @@ auto StandardSynthesisHost<T>::collect(
       create_buffer<T>(ctx_->allocators().host(),
                        nIntervals_); // dummy input until
                                      // intensity_field_data_host can be updated
+  // Center coordinates for much better performance of cos / sin
+  auto xyzCentered = create_buffer<T>(ctx_->allocators().host(), 3 * nAntenna_);
+  center_vector(nAntenna_, xyz, xyzCentered.get());
+  center_vector(nAntenna_, xyz + ldxyz, xyzCentered.get() + nAntenna_);
+  center_vector(nAntenna_, xyz + 2 * ldxyz, xyzCentered.get() + 2 * nAntenna_);
 
   if (s)
     intensity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_,
-                              nIntervals_, cluster.get(), indices.get());
+                              ldw, xyzCentered.get(), nAntenna_, d.get(), v.get(),
+                              nBeam_, nIntervals_, cluster.get(),
+                              indices.get());
   else
-    sensitivity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
-                                ldxyz, d.get(), v.get(), nBeam_);
+    sensitivity_field_data_host(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw,
+                                xyzCentered.get(), nAntenna_, d.get(), v.get(),
+                                nBeam_);
 
-  // blas::gemm(CblasColMajor, CblasTrans, CblasTrans, nEig, nAntenna_, nBeam_,
-  //            {1, 0}, v, nBeam_, w, ldw, {0, 0}, vw.get(), nEig);
   blas::gemm(CblasColMajor, CblasNoTrans, CblasNoTrans, nAntenna_, nEig, nBeam_,
              {1, 0}, w, ldw, v.get(), nBeam_, {0, 0}, vUnbeam.get(), nAntenna_);
 
 
   T alpha = 2.0 * M_PI / wl;
-  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_, xyz, ldxyz,
-          pixelX_.get(), pixelY_.get(), pixelZ_.get(), unlayeredStats.get(),
-          nPixel_);
+  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_,
+          xyzCentered.get(), nAntenna_, pixelX_.get(), pixelY_.get(),
+          pixelZ_.get(), unlayeredStats.get(), nPixel_);
 
+  // cluster eigenvalues / vectors based on invervals
   for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
     apply_filter(filter_.get()[idxFilter], nEig, d.get(), dFiltered.get());
     for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {

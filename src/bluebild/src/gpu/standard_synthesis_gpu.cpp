@@ -2,6 +2,7 @@
 #include <functional>
 #include <memory>
 #include <cstring>
+#include <cstddef>
 
 #include "bluebild/config.h"
 #include "bluebild/exceptions.hpp"
@@ -10,6 +11,7 @@
 #include "gpu/kernels/apply_filter.hpp"
 #include "gpu/kernels/scale_matrix.hpp"
 #include "gpu/kernels/gemmexp.hpp"
+#include "gpu/kernels/center_vector.hpp"
 #include "gpu/sensitivity_field_data_gpu.hpp"
 #include "gpu/standard_synthesis_gpu.hpp"
 #include "gpu/util/gpu_blas_api.hpp"
@@ -66,13 +68,27 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
                        nIntervals_); // dummy input until
                                      // intensity_field_data_host can be updated
 
+  // Center coordinates for much better performance of cos / sin
+  auto xyzCentered = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_);
+  {
+    std::size_t worksize =
+        gpu::center_vector_get_worksize<T>(ctx_->gpu_stream(), nAntenna_, xyz, xyzCentered.get());
+    auto workBuffer = create_buffer<char>(ctx_->allocators().gpu(), worksize);
+    for(int i =0; i < 3; ++i) {
+      gpu::center_vector<T>(ctx_->gpu_stream(), nAntenna_, xyz + i * ldxyz,
+                            xyzCentered.get() + i * nAntenna_, worksize,
+                            workBuffer.get());
+    }
+  }
+
   if (s)
-    intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w,
-                              ldw, xyz, ldxyz, d.get(), v.get(), nBeam_,
-                              nIntervals_, cluster.get(), indices.get());
+    intensity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, s, lds, w, ldw,
+                             xyzCentered.get(), nAntenna_, d.get(), v.get(),
+                             nBeam_, nIntervals_, cluster.get(), indices.get());
   else
-    sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
-                               ldxyz, d.get(), v.get(), nBeam_);
+    sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw,
+                               xyzCentered.get(), nAntenna_, d.get(), v.get(),
+                               nBeam_);
 
   auto DBufferHost = create_buffer<T>(ctx_->allocators().pinned(), nEig);
   auto DFilteredBufferHost = create_buffer<T>(ctx_->allocators().host(), nEig);
@@ -91,9 +107,9 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
 
   T alpha = 2.0 * M_PI / wl;
   gemmexp_gpu<T>(ctx_->gpu_stream(), nEig, nPixel_, nAntenna_, alpha,
-                 vUnbeam.get(), nAntenna_, xyz, ldxyz, pixelX_.get(),
-                 pixelY_.get(), pixelZ_.get(), unlayeredStats.get(), nPixel_);
-
+                 vUnbeam.get(), nAntenna_, xyzCentered.get(), nAntenna_,
+                 pixelX_.get(), pixelY_.get(), pixelZ_.get(),
+                 unlayeredStats.get(), nPixel_);
 
   auto filterHost = filterHost_.get();
   for (std::size_t idxFilter = 0; idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
