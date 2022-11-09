@@ -28,7 +28,7 @@ auto intensity_field_data_host(ContextInternal& ctx, T wl, std::size_t m, std::s
 
   gram_matrix_host<T>(ctx, m, n, w, ldw, xyz, ldxyz, wl, bufferG.get(), n);
 
-  int nEigOut = 0;
+  std::size_t nEigOut = 0;
   eigh_host<T>(ctx, n, nEig, s, lds, bufferG.get(), n, &nEigOut, d, v, ldv);
 }
 

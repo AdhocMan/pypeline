@@ -11,17 +11,18 @@ namespace bluebild {
 template <typename T> class NufftSynthesisGPU {
 public:
   NufftSynthesisGPU(std::shared_ptr<ContextInternal> ctx, T tol,
-                        int nAntenna, int nBeam,
-                        int nIntervals, int nFilter,
-                        const BluebildFilter *filterHost, int nPixel,
-                        const T *lmnX, const T *lmnY, const T *lmnZ);
+                    std::size_t nAntenna, std::size_t nBeam,
+                    std::size_t nIntervals, std::size_t nFilter,
+                    const BluebildFilter *filterHost, std::size_t nPixel,
+                    const T *lmnX, const T *lmnY, const T *lmnZ);
 
-  auto collect(int nEig, T wl, const T *intervals, int ldIntervals,
-               const gpu::ComplexType<T> *s, int lds,
-               const gpu::ComplexType<T> *w, int ldw, const T *xyz, int ldxyz,
-               const T *uvw, int lduvw) -> void;
+  auto collect(std::size_t nEig, T wl, const T *intervals,
+               std::size_t ldIntervals, const gpu::ComplexType<T> *s,
+               std::size_t lds, const gpu::ComplexType<T> *w, std::size_t ldw,
+               const T *xyz, std::size_t ldxyz, const T *uvw, std::size_t lduvw)
+      -> void;
 
-  auto get(BluebildFilter f, T *outHostOrDevice, int ld) -> void;
+  auto get(BluebildFilter f, T *outHostOrDevice, std::size_t ld) -> void;
 
   auto context() -> ContextInternal & { return *ctx_; }
 
@@ -30,11 +31,11 @@ private:
 
   std::shared_ptr<ContextInternal> ctx_;
   const T tol_;
-  const int nIntervals_, nFilter_, nPixel_, nAntenna_, nBeam_;
+  const std::size_t nIntervals_, nFilter_, nPixel_, nAntenna_, nBeam_;
   BufferType<BluebildFilter> filterHost_;
   BufferType<T> lmnX_, lmnY_, lmnZ_;
 
-  int nMaxInputCount_, inputCount_;
+  std::size_t nMaxInputCount_, inputCount_;
   BufferType<gpu::ComplexType<T>> virtualVis_;
   BufferType<T> uvwX_, uvwY_, uvwZ_;
   BufferType<T> img_;

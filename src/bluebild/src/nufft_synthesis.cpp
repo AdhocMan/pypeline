@@ -19,10 +19,10 @@ namespace bluebild {
 
 template <typename T> struct NufftSynthesisInternal {
   NufftSynthesisInternal(const std::shared_ptr<ContextInternal> &ctx, T tol,
-                            int nAntenna, int nBeam, int nIntervals,
-                            int nFilter, const BluebildFilter *filter,
-                            int nPixel, const T *lmnX, const T *lmnY,
-                            const T *lmnZ)
+                         std::size_t nAntenna, std::size_t nBeam,
+                         std::size_t nIntervals, std::size_t nFilter,
+                         const BluebildFilter *filter, std::size_t nPixel,
+                         const T *lmnX, const T *lmnY, const T *lmnZ)
       : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals),
         nPixel_(nPixel) {
     if (ctx_->processing_unit() == BLUEBILD_PU_CPU) {
@@ -66,9 +66,11 @@ template <typename T> struct NufftSynthesisInternal {
     }
   }
 
-  void collect(int nEig, T wl, const T *intervals, int ldIntervals,
-               const std::complex<T> *s, int lds, const std::complex<T> *w,
-               int ldw, const T *xyz, int ldxyz, const T* uvw, int lduvw) {
+  void collect(std::size_t nEig, T wl, const T *intervals,
+               std::size_t ldIntervals, const std::complex<T> *s,
+               std::size_t lds, const std::complex<T> *w, std::size_t ldw,
+               const T *xyz, std::size_t ldxyz, const T *uvw,
+               std::size_t lduvw) {
     if (planHost_) {
       planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w,
                                 ldw, xyz, ldxyz, uvw, lduvw);
@@ -118,7 +120,8 @@ template <typename T> struct NufftSynthesisInternal {
             ctx_->gpu_stream()));
       }
       if (!is_device_ptr(uvw)) {
-        uvwBuffer = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_ * nAntenna_);
+        uvwBuffer = create_buffer<T>(ctx_->allocators().gpu(),
+                                     3 * nAntenna_ * nAntenna_);
         uvwDevice = uvwBuffer.get();
         lduvwDevice = nAntenna_ * nAntenna_;
         gpu::check_status(gpu::memcpy_2d_async(
@@ -140,7 +143,7 @@ template <typename T> struct NufftSynthesisInternal {
     }
   }
 
-  auto get(BluebildFilter f, T *out, int ld) -> void {
+  auto get(BluebildFilter f, T *out, std::size_t ld) -> void {
     if (planHost_) {
       planHost_.value().get(f, out, ld);
     } else {
@@ -154,7 +157,7 @@ template <typename T> struct NufftSynthesisInternal {
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  int nAntenna_, nBeam_, nIntervals_, nPixel_;
+  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_;
   std::optional<NufftSynthesisHost<T>> planHost_;
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
   std::optional<NufftSynthesisGPU<T>> planGPU_;
@@ -162,10 +165,12 @@ template <typename T> struct NufftSynthesisInternal {
 };
 
 template <typename T>
-NufftSynthesis<T>::NufftSynthesis(
-    Context &ctx, T tol, int nAntenna, int nBeam,
-    int nIntervals, int nFilter, const BluebildFilter *filter,
-    int nPixel, const T *lmnX, const T *lmnY, const T *lmnZ)
+NufftSynthesis<T>::NufftSynthesis(Context &ctx, T tol, std::size_t nAntenna,
+                                  std::size_t nBeam, std::size_t nIntervals,
+                                  std::size_t nFilter,
+                                  const BluebildFilter *filter,
+                                  std::size_t nPixel, const T *lmnX,
+                                  const T *lmnY, const T *lmnZ)
     : plan_(new NufftSynthesisInternal<T>(
                 InternalContextAccessor::get(ctx), tol, nAntenna, nBeam,
                 nIntervals, nFilter, filter, nPixel, lmnX, lmnY, lmnZ),
@@ -174,11 +179,12 @@ NufftSynthesis<T>::NufftSynthesis(
             }) {}
 
 template <typename T>
-auto NufftSynthesis<T>::collect(int nEig, T wl, const T *intervals,
-                                int ldIntervals, const std::complex<T> *s,
-                                int lds, const std::complex<T> *w, int ldw,
-                                const T *xyz, int ldxyz, const T *uvw,
-                                int lduvw) -> void {
+auto NufftSynthesis<T>::collect(std::size_t nEig, T wl, const T *intervals,
+                                std::size_t ldIntervals,
+                                const std::complex<T> *s, std::size_t lds,
+                                const std::complex<T> *w, std::size_t ldw,
+                                const T *xyz, std::size_t ldxyz, const T *uvw,
+                                std::size_t lduvw) -> void {
 
   reinterpret_cast<NufftSynthesisInternal<T> *>(plan_.get())
       ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz,
@@ -186,10 +192,8 @@ auto NufftSynthesis<T>::collect(int nEig, T wl, const T *intervals,
 }
 
 template <typename T>
-auto NufftSynthesis<T>::get(BluebildFilter f, T *out, int ld)
-    -> void {
-  reinterpret_cast<NufftSynthesisInternal<T> *>(plan_.get())
-      ->get(f, out, ld);
+auto NufftSynthesis<T>::get(BluebildFilter f, T *out, std::size_t ld) -> void {
+  reinterpret_cast<NufftSynthesisInternal<T> *>(plan_.get())->get(f, out, ld);
 }
 
 template class BLUEBILD_EXPORT NufftSynthesis<double>;

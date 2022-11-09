@@ -15,16 +15,17 @@
 
 namespace bluebild {
 
-
 template <typename T>
 NufftSynthesisGPU<T>::NufftSynthesisGPU(
-    std::shared_ptr<ContextInternal> ctx, T tol, int nAntenna, int nBeam,
-    int nIntervals, int nFilter, const BluebildFilter *filterHost, int nPixel,
-    const T *lmnX, const T *lmnY, const T *lmnZ)
+    std::shared_ptr<ContextInternal> ctx, T tol, std::size_t nAntenna,
+    std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
+    const BluebildFilter *filterHost, std::size_t nPixel, const T *lmnX,
+    const T *lmnY, const T *lmnZ)
     : ctx_(std::move(ctx)), tol_(tol), nIntervals_(nIntervals),
       nFilter_(nFilter), nPixel_(nPixel), nAntenna_(nAntenna), nBeam_(nBeam),
       inputCount_(0) {
-  filterHost_ = create_buffer<BluebildFilter>(ctx_->allocators().host(), nFilter_);
+  filterHost_ =
+      create_buffer<BluebildFilter>(ctx_->allocators().host(), nFilter_);
   std::memcpy(filterHost_.get(), filterHost, sizeof(BluebildFilter) * nFilter_);
   lmnX_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
   gpu::check_status(gpu::memcpy_async(lmnX_.get(), lmnX, sizeof(T) * nPixel_,
@@ -66,12 +67,11 @@ NufftSynthesisGPU<T>::NufftSynthesisGPU(
 }
 
 template <typename T>
-auto NufftSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
-                                   int ldIntervals,
-                                   const gpu::ComplexType<T> *s, int lds,
-                                   const gpu::ComplexType<T> *w, int ldw,
-                                   const T *xyz, int ldxyz, const T *uvw,
-                                   int lduvw) -> void {
+auto NufftSynthesisGPU<T>::collect(
+    std::size_t nEig, T wl, const T *intervals, std::size_t ldIntervals,
+    const gpu::ComplexType<T> *s, std::size_t lds, const gpu::ComplexType<T> *w,
+    std::size_t ldw, const T *xyz, std::size_t ldxyz, const T *uvw,
+    std::size_t lduvw) -> void {
 
   // store coordinates
   gpu::check_status(
@@ -96,7 +96,7 @@ auto NufftSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
                              xyz, ldxyz, d.get(), v.get(), nBeam_);
   else
     sensitivity_field_data_gpu(*ctx_, wl, nAntenna_, nBeam_, nEig, w, ldw, xyz,
-                                ldxyz, d.get(), v.get(), nBeam_);
+                               ldxyz, d.get(), v.get(), nBeam_);
 
   auto virtVisPtr = virtualVis_.get() + inputCount_ * nAntenna_ * nAntenna_;
 
@@ -105,10 +105,10 @@ auto NufftSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
   const auto ldVirtVis1 = nIntervals_ * ldVirtVis2;
 
   virtual_vis_gpu(*ctx_, nFilter_, filterHost_.get(), nIntervals_, intervals,
-                   ldIntervals, nEig, d.get(), nAntenna_, v.get(), nBeam_,
-                   nBeam_, w, ldw, virtVisPtr,
-                   nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
-                   nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
+                  ldIntervals, nEig, d.get(), nAntenna_, v.get(), nBeam_,
+                  nBeam_, w, ldw, virtVisPtr,
+                  nMaxInputCount_ * nIntervals_ * nAntenna_ * nAntenna_,
+                  nMaxInputCount_ * nAntenna_ * nAntenna_, nAntenna_);
 
   const auto virtualVisBufferSize =
       nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
@@ -127,8 +127,8 @@ template <typename T> auto NufftSynthesisGPU<T>::computeNufft() -> void {
     gpu::check_status(gpu::stream_synchronize(
         ctx_->gpu_stream())); // cufinufft cannot be asigned a stream
     Nufft3d3GPU<T> transform(1, tol_, 1, nAntenna_ * nAntenna_ * inputCount_,
-                              uvwX_.get(), uvwY_.get(), uvwZ_.get(), nPixel_,
-                              lmnX_.get(), lmnY_.get(), lmnZ_.get());
+                             uvwX_.get(), uvwY_.get(), uvwZ_.get(), nPixel_,
+                             lmnX_.get(), lmnY_.get(), lmnZ_.get());
 
     const auto ldVirtVis3 = nAntenna_;
     const auto ldVirtVis2 = nMaxInputCount_ * nAntenna_ * ldVirtVis3;
@@ -138,8 +138,8 @@ template <typename T> auto NufftSynthesisGPU<T>::computeNufft() -> void {
         nIntervals_ * nFilter_ * nAntenna_ * nAntenna_ * nMaxInputCount_;
     const auto imgSize = nPixel_ * nIntervals_ * nFilter_;
 
-    for (int i = 0; i < nFilter_; ++i) {
-      for (int j = 0; j < nIntervals_; ++j) {
+    for (std::size_t i = 0; i < nFilter_; ++i) {
+      for (std::size_t j = 0; j < nIntervals_; ++j) {
         auto imgPtr = img_.get() + (j + i * nIntervals_) * nPixel_;
         assert(i * ldVirtVis1 + j * ldVirtVis2 +
                    nAntenna_ * nAntenna_ * inputCount_ <=
@@ -153,17 +153,19 @@ template <typename T> auto NufftSynthesisGPU<T>::computeNufft() -> void {
     }
   }
 
-  gpu::check_status(gpu::stream_synchronize(nullptr)); // cufinufft cannot be asigned a stream
+  gpu::check_status(
+      gpu::stream_synchronize(nullptr)); // cufinufft cannot be asigned a stream
   inputCount_ = 0;
 }
 
 template <typename T>
-auto NufftSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice, int ld) -> void {
+auto NufftSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice,
+                               std::size_t ld) -> void {
   computeNufft(); // make sure all input has been processed
 
-  int index = nFilter_;
+  std::size_t index = nFilter_;
   const BluebildFilter *filterPtr = filterHost_.get();
-  for (int i = 0; i < nFilter_; ++i) {
+  for (std::size_t i = 0; i < nFilter_; ++i) {
     if (filterPtr[i] == f) {
       index = i;
       break;

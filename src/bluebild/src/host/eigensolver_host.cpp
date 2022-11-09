@@ -31,7 +31,7 @@ static auto copy_2d(std::size_t m, std::size_t n, const T* a, std::size_t lda, T
 
 template <typename T>
 auto eigh_host(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std::complex<T>* a,
-               std::size_t lda, const std::complex<T>* b, std::size_t ldb, int* nEigOut, T* d,
+               std::size_t lda, const std::complex<T>* b, std::size_t ldb, std::size_t* nEigOut, T* d,
                std::complex<T>* v, std::size_t ldv) -> void {
   // copy input into buffer since eigensolver will overwrite
   auto bufferA = create_buffer<std::complex<T>>(ctx.allocators().host(), m * m);
@@ -95,16 +95,16 @@ auto eigh_host(ContextInternal& ctx, std::size_t m, std::size_t nEig, const std:
     std::memset(v + i * ldv, 0, m * sizeof(std::complex<T>));
   }
 
-  *nEigOut = std::min<int>(hMeig, nEig);
+  *nEigOut = std::min<std::size_t>(hMeig, nEig);
 }
 
 template auto eigh_host<float>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
                                const std::complex<float>* a, std::size_t lda,
-                               const std::complex<float>* b, std::size_t ldb, int* nEigOut,
+                               const std::complex<float>* b, std::size_t ldb, std::size_t* nEigOut,
                                float* d, std::complex<float>* v, std::size_t ldv) -> void;
 
 template auto eigh_host<double>(ContextInternal& ctx, std::size_t m, std::size_t nEig,
                                 const std::complex<double>* a, std::size_t lda,
-                                const std::complex<double>* b, std::size_t ldb, int* nEigOut,
+                                const std::complex<double>* b, std::size_t ldb, std::size_t* nEigOut,
                                 double* d, std::complex<double>* v, std::size_t ldv) -> void;
 }  // namespace bluebild

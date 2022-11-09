@@ -17,10 +17,10 @@ namespace bluebild {
 
 template <typename T> struct StandardSynthesisInternal {
   StandardSynthesisInternal(const std::shared_ptr<ContextInternal> &ctx,
-                            int nAntenna, int nBeam, int nIntervals,
-                            int nFilter, const BluebildFilter *filter,
-                            int nPixel, const T *pixelX, const T *pixelY,
-                            const T *pixelZ)
+                            std::size_t nAntenna, std::size_t nBeam,
+                            std::size_t nIntervals, std::size_t nFilter,
+                            const BluebildFilter *filter, std::size_t nPixel,
+                            const T *pixelX, const T *pixelY, const T *pixelZ)
       : ctx_(ctx), nAntenna_(nAntenna), nBeam_(nBeam), nIntervals_(nIntervals),
         nPixel_(nPixel) {
     if (ctx_->processing_unit() == BLUEBILD_PU_CPU) {
@@ -64,9 +64,10 @@ template <typename T> struct StandardSynthesisInternal {
     }
   }
 
-  void collect(int nEig, T wl, const T *intervals, int ldIntervals,
-               const std::complex<T> *s, int lds, const std::complex<T> *w,
-               int ldw, const T *xyz, int ldxyz) {
+  void collect(std::size_t nEig, T wl, const T *intervals,
+               std::size_t ldIntervals, const std::complex<T> *s,
+               std::size_t lds, const std::complex<T> *w, std::size_t ldw,
+               const T *xyz, std::size_t ldxyz) {
     if (planHost_) {
       planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w,
                                 ldw, xyz, ldxyz);
@@ -126,7 +127,7 @@ template <typename T> struct StandardSynthesisInternal {
     }
   }
 
-  auto get(BluebildFilter f, T *out, int ld) -> void {
+  auto get(BluebildFilter f, T *out, std::size_t ld) -> void {
     if (planHost_) {
       planHost_.value().get(f, out, ld);
     } else {
@@ -140,7 +141,7 @@ template <typename T> struct StandardSynthesisInternal {
   }
 
   std::shared_ptr<ContextInternal> ctx_;
-  int nAntenna_, nBeam_, nIntervals_, nPixel_;
+  std::size_t nAntenna_, nBeam_, nIntervals_, nPixel_;
   std::optional<StandardSynthesisHost<T>> planHost_;
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
   std::optional<StandardSynthesisGPU<T>> planGPU_;
@@ -148,11 +149,10 @@ template <typename T> struct StandardSynthesisInternal {
 };
 
 template <typename T>
-StandardSynthesis<T>::StandardSynthesis(Context &ctx, int nAntenna, int nBeam,
-                                        int nIntervals, int nFilter,
-                                        const BluebildFilter *filter,
-                                        int nPixel, const T *pixelX,
-                                        const T *pixelY, const T *pixelZ)
+StandardSynthesis<T>::StandardSynthesis(
+    Context &ctx, std::size_t nAntenna, std::size_t nBeam,
+    std::size_t nIntervals, std::size_t nFilter, const BluebildFilter *filter,
+    std::size_t nPixel, const T *pixelX, const T *pixelY, const T *pixelZ)
     : plan_(new StandardSynthesisInternal<T>(
                 InternalContextAccessor::get(ctx), nAntenna, nBeam, nIntervals,
                 nFilter, filter, nPixel, pixelX, pixelY, pixelZ),
@@ -161,17 +161,18 @@ StandardSynthesis<T>::StandardSynthesis(Context &ctx, int nAntenna, int nBeam,
             }) {}
 
 template <typename T>
-auto StandardSynthesis<T>::collect(int nEig, T wl, const T *intervals,
-                                   int ldIntervals, const std::complex<T> *s,
-                                   int lds, const std::complex<T> *w, int ldw,
-                                   const T *xyz, int ldxyz) -> void {
+auto StandardSynthesis<T>::collect(std::size_t nEig, T wl, const T *intervals,
+                                   std::size_t ldIntervals,
+                                   const std::complex<T> *s, std::size_t lds,
+                                   const std::complex<T> *w, std::size_t ldw,
+                                   const T *xyz, std::size_t ldxyz) -> void {
 
   reinterpret_cast<StandardSynthesisInternal<T> *>(plan_.get())
       ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz);
 }
 
 template <typename T>
-auto StandardSynthesis<T>::get(BluebildFilter f, T *out, int ld)
+auto StandardSynthesis<T>::get(BluebildFilter f, T *out, std::size_t ld)
     -> void {
   reinterpret_cast<StandardSynthesisInternal<T> *>(plan_.get())
       ->get(f, out, ld);
@@ -181,6 +182,4 @@ template class BLUEBILD_EXPORT StandardSynthesis<double>;
 
 template class BLUEBILD_EXPORT StandardSynthesis<float>;
 
-
 } // namespace bluebild
-

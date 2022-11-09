@@ -22,25 +22,27 @@ namespace bluebild {
 
 template <typename T>
 StandardSynthesisGPU<T>::StandardSynthesisGPU(
-    std::shared_ptr<ContextInternal> ctx, int nAntenna, int nBeam,
-    int nIntervals, int nFilter, const BluebildFilter *filterHost, int nPixel,
-    const T *pixelX, const T *pixelY, const T *pixelZ)
+    std::shared_ptr<ContextInternal> ctx, std::size_t nAntenna,
+    std::size_t nBeam, std::size_t nIntervals, std::size_t nFilter,
+    const BluebildFilter *filterHost, std::size_t nPixel, const T *pixelX,
+    const T *pixelY, const T *pixelZ)
     : ctx_(std::move(ctx)), nIntervals_(nIntervals), nFilter_(nFilter),
       nPixel_(nPixel), nAntenna_(nAntenna), nBeam_(nBeam) {
-  filterHost_ = create_buffer<BluebildFilter>(ctx_->allocators().host(), nFilter_);
+  filterHost_ =
+      create_buffer<BluebildFilter>(ctx_->allocators().host(), nFilter_);
   std::memcpy(filterHost_.get(), filterHost, sizeof(BluebildFilter) * nFilter_);
   pixelX_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
-  gpu::check_status(gpu::memcpy_async(pixelX_.get(), pixelX, sizeof(T) * nPixel_,
-                                      gpu::flag::MemcpyDeviceToDevice,
-                                      ctx_->gpu_stream()));
+  gpu::check_status(
+      gpu::memcpy_async(pixelX_.get(), pixelX, sizeof(T) * nPixel_,
+                        gpu::flag::MemcpyDeviceToDevice, ctx_->gpu_stream()));
   pixelY_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
-  gpu::check_status(gpu::memcpy_async(pixelY_.get(), pixelY, sizeof(T) * nPixel_,
-                                      gpu::flag::MemcpyDeviceToDevice,
-                                      ctx_->gpu_stream()));
+  gpu::check_status(
+      gpu::memcpy_async(pixelY_.get(), pixelY, sizeof(T) * nPixel_,
+                        gpu::flag::MemcpyDeviceToDevice, ctx_->gpu_stream()));
   pixelZ_ = create_buffer<T>(ctx_->allocators().gpu(), nPixel_);
-  gpu::check_status(gpu::memcpy_async(pixelZ_.get(), pixelZ, sizeof(T) * nPixel_,
-                                      gpu::flag::MemcpyDeviceToDevice,
-                                      ctx_->gpu_stream()));
+  gpu::check_status(
+      gpu::memcpy_async(pixelZ_.get(), pixelZ, sizeof(T) * nPixel_,
+                        gpu::flag::MemcpyDeviceToDevice, ctx_->gpu_stream()));
 
   img_ = create_buffer<T>(ctx_->allocators().gpu(),
                           nPixel_ * nIntervals_ * nFilter_);
@@ -49,27 +51,26 @@ StandardSynthesisGPU<T>::StandardSynthesisGPU(
 }
 
 template <typename T>
-auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
-                                      int ldIntervals,
-                                      const gpu::ComplexType<T> *s, int lds,
-                                      const gpu::ComplexType<T> *w, int ldw,
-                                      const T *xyz, int ldxyz) -> void {
+auto StandardSynthesisGPU<T>::collect(
+    std::size_t nEig, T wl, const T *intervalsHost, std::size_t ldIntervals,
+    const gpu::ComplexType<T> *s, std::size_t lds, const gpu::ComplexType<T> *w,
+    std::size_t ldw, const T *xyz, std::size_t ldxyz) -> void {
 
   auto v = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
                                               nBeam_ * nEig);
   auto d = create_buffer<T>(ctx_->allocators().gpu(), nEig);
-  auto vUnbeam =
-      create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(), nAntenna_ * nEig);
+  auto vUnbeam = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
+                                                    nAntenna_ * nEig);
   auto unlayeredStats =
       create_buffer<T>(ctx_->allocators().gpu(), nPixel_ * nEig);
 
   // Center coordinates for much better performance of cos / sin
   auto xyzCentered = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_);
   {
-    std::size_t worksize =
-        gpu::center_vector_get_worksize<T>(ctx_->gpu_stream(), nAntenna_, xyz, xyzCentered.get());
+    std::size_t worksize = gpu::center_vector_get_worksize<T>(
+        ctx_->gpu_stream(), nAntenna_, xyz, xyzCentered.get());
     auto workBuffer = create_buffer<char>(ctx_->allocators().gpu(), worksize);
-    for(int i =0; i < 3; ++i) {
+    for (std::size_t i = 0; i < 3; ++i) {
       gpu::center_vector<T>(ctx_->gpu_stream(), nAntenna_, xyz + i * ldxyz,
                             xyzCentered.get() + i * nAntenna_, worksize,
                             workBuffer.get());
@@ -107,10 +108,13 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
                  unlayeredStats.get(), nPixel_);
 
   auto filterHost = filterHost_.get();
-  for (std::size_t idxFilter = 0; idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
-    apply_filter(filterHost_.get()[idxFilter], nEig, DBufferHost.get(), DFilteredBufferHost.get());
+  for (std::size_t idxFilter = 0;
+       idxFilter < static_cast<std::size_t>(nFilter_); ++idxFilter) {
+    apply_filter(filterHost_.get()[idxFilter], nEig, DBufferHost.get(),
+                 DFilteredBufferHost.get());
 
-    for (std::size_t idxInt = 0; idxInt < static_cast<std::size_t>(nIntervals_); ++idxInt) {
+    for (std::size_t idxInt = 0; idxInt < static_cast<std::size_t>(nIntervals_);
+         ++idxInt) {
       std::size_t start, size;
       std::tie(start, size) = find_interval_indices(
           nEig, DBufferHost.get(),
@@ -131,10 +135,11 @@ auto StandardSynthesisGPU<T>::collect(int nEig, T wl, const T *intervalsHost,
 }
 
 template <typename T>
-auto StandardSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice, int ld) -> void {
-  int index = nFilter_;
+auto StandardSynthesisGPU<T>::get(BluebildFilter f, T *outHostOrDevice,
+                                  std::size_t ld) -> void {
+  std::size_t index = nFilter_;
   const BluebildFilter *filterPtr = filterHost_.get();
-  for (int idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
+  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
     if (filterPtr[idxFilter] == f) {
       index = idxFilter;
       break;
