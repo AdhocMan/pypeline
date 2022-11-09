@@ -66,19 +66,20 @@ NufftSynthesisHost<T>::NufftSynthesisHost(
 }
 
 template <typename T>
-auto NufftSynthesisHost<T>::collect(
-    std::size_t nEig, T wl, const T *intervals, std::size_t ldIntervals,
-    const std::complex<T> *s, std::size_t lds, const std::complex<T> *w,
-    std::size_t ldw, const T *xyz, std::size_t ldxyz, const T *uvwX,
-    const T *uvwY, const T *uvwZ) -> void {
+auto NufftSynthesisHost<T>::collect(std::size_t nEig, T wl, const T *intervals,
+                                    std::size_t ldIntervals,
+                                    const std::complex<T> *s, std::size_t lds,
+                                    const std::complex<T> *w, std::size_t ldw,
+                                    const T *xyz, std::size_t ldxyz,
+                                    const T *uvw, std::size_t lduvw) -> void {
 
   // store coordinates
-  std::memcpy(uvwX_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwX,
+  std::memcpy(uvwX_.get() + inputCount_ * nAntenna_ * nAntenna_, uvw,
               sizeof(T) * nAntenna_ * nAntenna_);
-  std::memcpy(uvwY_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwY,
+  std::memcpy(uvwY_.get() + inputCount_ * nAntenna_ * nAntenna_, uvw + lduvw,
               sizeof(T) * nAntenna_ * nAntenna_);
-  std::memcpy(uvwZ_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwZ,
-              sizeof(T) * nAntenna_ * nAntenna_);
+  std::memcpy(uvwZ_.get() + inputCount_ * nAntenna_ * nAntenna_,
+              uvw + 2 * lduvw, sizeof(T) * nAntenna_ * nAntenna_);
 
   auto v =
       create_buffer<std::complex<T>>(ctx_->allocators().host(), nBeam_ * nEig);

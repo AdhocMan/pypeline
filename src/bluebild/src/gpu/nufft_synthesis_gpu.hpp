@@ -16,11 +16,10 @@ public:
                         const BluebildFilter *filterHost, int nPixel,
                         const T *lmnX, const T *lmnY, const T *lmnZ);
 
-  auto collect(int nEig, T wl, const T *intervals,
-               int ldIntervals, const gpu::ComplexType<T> *s,
-               int lds, const gpu::ComplexType<T> *w, int ldw,
-               const T *xyz, int ldxyz, const T *uvwX, const T *uvwY,
-               const T *uvwZ) -> void;
+  auto collect(int nEig, T wl, const T *intervals, int ldIntervals,
+               const gpu::ComplexType<T> *s, int lds,
+               const gpu::ComplexType<T> *w, int ldw, const T *xyz, int ldxyz,
+               const T *uvw, int lduvw) -> void;
 
   auto get(BluebildFilter f, T *outHostOrDevice, int ld) -> void;
 

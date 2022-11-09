@@ -68,15 +68,14 @@ template <typename T> struct NufftSynthesisInternal {
 
   void collect(int nEig, T wl, const T *intervals, int ldIntervals,
                const std::complex<T> *s, int lds, const std::complex<T> *w,
-               int ldw, const T *xyz, int ldxyz, const T *uvwX, const T *uvwY,
-               const T *uvwZ) {
+               int ldw, const T *xyz, int ldxyz, const T* uvw, int lduvw) {
     if (planHost_) {
       planHost_.value().collect(nEig, wl, intervals, ldIntervals, s, lds, w,
-                                ldw, xyz, ldxyz, uvwX, uvwY, uvwZ);
+                                ldw, xyz, ldxyz, uvw, lduvw);
     } else {
 #if defined(BLUEBILD_CUDA) || defined(BLUEBILD_ROCM)
       BufferType<gpu::ComplexType<T>> wBuffer, sBuffer;
-      BufferType<T> xyzBuffer, uvwXBuffer, uvwYBuffer, uvwZBuffer;
+      BufferType<T> xyzBuffer, uvwBuffer;
 
       auto sDevice = reinterpret_cast<const gpu::ComplexType<T> *>(s);
       auto ldsDevice = lds;
@@ -84,9 +83,8 @@ template <typename T> struct NufftSynthesisInternal {
       auto ldwDevice = ldw;
       auto xyzDevice = xyz;
       auto ldxyzDevice = ldxyz;
-      auto uvwXDevice = uvwX;
-      auto uvwYDevice = uvwY;
-      auto uvwZDevice = uvwZ;
+      auto uvwDevice = uvw;
+      auto lduvwDevice = lduvw;
 
       if (s && !is_device_ptr(w)) {
         sBuffer = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
@@ -119,25 +117,13 @@ template <typename T> struct NufftSynthesisInternal {
             nAntenna_ * sizeof(T), 3, gpu::flag::MemcpyHostToDevice,
             ctx_->gpu_stream()));
       }
-      if (!is_device_ptr(uvwX)) {
-        uvwXBuffer = create_buffer<T>(ctx_->allocators().gpu(), nAntenna_ * nAntenna_);
-        uvwXDevice = uvwXBuffer.get();
-        gpu::check_status(gpu::memcpy_async(
-            uvwXBuffer.get(), uvwX, nAntenna_ * nAntenna_ * sizeof(T),
-            gpu::flag::MemcpyHostToDevice, ctx_->gpu_stream()));
-      }
-      if (!is_device_ptr(uvwY)) {
-        uvwYBuffer = create_buffer<T>(ctx_->allocators().gpu(), nAntenna_ * nAntenna_);
-        uvwYDevice = uvwYBuffer.get();
-        gpu::check_status(gpu::memcpy_async(
-            uvwYBuffer.get(), uvwY, nAntenna_ * nAntenna_ * sizeof(T),
-            gpu::flag::MemcpyHostToDevice, ctx_->gpu_stream()));
-      }
-      if (!is_device_ptr(uvwZ)) {
-        uvwZBuffer = create_buffer<T>(ctx_->allocators().gpu(), nAntenna_ * nAntenna_);
-        uvwZDevice = uvwZBuffer.get();
-        gpu::check_status(gpu::memcpy_async(
-            uvwZBuffer.get(), uvwZ, nAntenna_ * nAntenna_ * sizeof(T),
+      if (!is_device_ptr(uvw)) {
+        uvwBuffer = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_ * nAntenna_);
+        uvwDevice = uvwBuffer.get();
+        lduvwDevice = nAntenna_ * nAntenna_;
+        gpu::check_status(gpu::memcpy_2d_async(
+            uvwBuffer.get(), nAntenna_ * nAntenna_ * sizeof(T), uvw,
+            lduvw * sizeof(T), nAntenna_ * nAntenna_ * sizeof(T), 3,
             gpu::flag::MemcpyHostToDevice, ctx_->gpu_stream()));
       }
 
@@ -146,8 +132,8 @@ template <typename T> struct NufftSynthesisInternal {
       gpu::check_status(gpu::stream_synchronize(ctx_->gpu_stream()));
 
       planGPU_->collect(nEig, wl, intervals, ldIntervals, sDevice, ldsDevice,
-                        wDevice, ldwDevice, xyzDevice, ldxyzDevice, uvwXDevice,
-                        uvwYDevice, uvwZDevice);
+                        wDevice, ldwDevice, xyzDevice, ldxyzDevice, uvwDevice,
+                        lduvwDevice);
 #else
       throw GPUSupportError();
 #endif
@@ -189,14 +175,14 @@ NufftSynthesis<T>::NufftSynthesis(
 
 template <typename T>
 auto NufftSynthesis<T>::collect(int nEig, T wl, const T *intervals,
-                                   int ldIntervals, const std::complex<T> *s,
-                                   int lds, const std::complex<T> *w, int ldw,
-                                   const T *xyz, int ldxyz, const T *uvwX,
-                                   const T *uvwY, const T *uvwZ) -> void {
+                                int ldIntervals, const std::complex<T> *s,
+                                int lds, const std::complex<T> *w, int ldw,
+                                const T *xyz, int ldxyz, const T *uvw,
+                                int lduvw) -> void {
 
   reinterpret_cast<NufftSynthesisInternal<T> *>(plan_.get())
       ->collect(nEig, wl, intervals, ldIntervals, s, lds, w, ldw, xyz, ldxyz,
-                uvwX, uvwY, uvwZ);
+                uvw, lduvw);
 }
 
 template <typename T>

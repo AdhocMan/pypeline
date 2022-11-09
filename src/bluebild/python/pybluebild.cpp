@@ -503,8 +503,7 @@ struct NufftSynthesisDispatcher {
   operator=(const NufftSynthesisDispatcher &) = delete;
 
   auto collect(int nEig, double wl, pybind11::array intervals,
-               pybind11::array w, pybind11::array xyz, pybind11::array uvwX,
-               pybind11::array uvwY, pybind11::array uvwZ,
+               pybind11::array w, pybind11::array xyz, pybind11::array uvw,
                std::optional<pybind11::array> s) -> void {
     std::visit(
         [&](auto &&arg) -> void {
@@ -524,15 +523,10 @@ struct NufftSynthesisDispatcher {
             py::array_t<T, py::array::f_style | py::array::forcecast> xyzArray(
                 xyz);
             check_2d_array(xyzArray, {nAntenna, 3});
-            py::array_t<T, py::array::f_style | py::array::forcecast> uvwXArray(
-                uvwX);
-            check_1d_array(uvwXArray, nAntenna * nAntenna);
-            py::array_t<T, py::array::f_style | py::array::forcecast> uvwYArray(
-                uvwY);
-            check_1d_array(uvwYArray, nAntenna * nAntenna);
-            py::array_t<T, py::array::f_style | py::array::forcecast> uvwZArray(
-                uvwZ);
-            check_1d_array(uvwZArray, nAntenna * nAntenna);
+            py::array_t<T, py::array::f_style | py::array::forcecast> uvwArray(
+                uvw);
+            check_2d_array(uvwArray, {nAntenna * nAntenna, 3});
+
             std::optional<py::array_t<
                 std::complex<T>, py::array::f_style | py::array::forcecast>>
                 sArray;
@@ -553,7 +547,8 @@ struct NufftSynthesisDispatcher {
                 safe_cast<int>(wArray.strides(1) / wArray.itemsize()),
                 xyzArray.data(0),
                 safe_cast<int>(xyzArray.strides(1) / xyzArray.itemsize()),
-                uvwXArray.data(0), uvwYArray.data(0), uvwZArray.data(0));
+                uvwArray.data(0),
+                safe_cast<int>(uvwArray.strides(1) / uvwArray.itemsize()));
 
           } else {
             throw InternalError();
@@ -749,13 +744,10 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"), pybind11::arg("tol"))
-      .def(
-          "collect", &NufftSynthesisDispatcher::collect, pybind11::arg("nEig"),
-          pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
-          pybind11::arg("xyz"), pybind11::arg("uvwX"), pybind11::arg("uvwY"),
-          pybind11::arg("uvwY"),
-          pybind11::arg("s") =
-              std::optional<pybind11::array>())
+      .def("collect", &NufftSynthesisDispatcher::collect, pybind11::arg("nEig"),
+           pybind11::arg("wl"), pybind11::arg("intervals"), pybind11::arg("w"),
+           pybind11::arg("xyz"), pybind11::arg("uvw"),
+           pybind11::arg("s") = std::optional<pybind11::array>())
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")

@@ -67,24 +67,24 @@ NufftSynthesisGPU<T>::NufftSynthesisGPU(
 
 template <typename T>
 auto NufftSynthesisGPU<T>::collect(int nEig, T wl, const T *intervals,
-                                      int ldIntervals,
-                                      const gpu::ComplexType<T> *s, int lds,
-                                      const gpu::ComplexType<T> *w, int ldw,
-                                      const T *xyz, int ldxyz, const T *uvwX,
-                                      const T *uvwY, const T *uvwZ) -> void {
+                                   int ldIntervals,
+                                   const gpu::ComplexType<T> *s, int lds,
+                                   const gpu::ComplexType<T> *w, int ldw,
+                                   const T *xyz, int ldxyz, const T *uvw,
+                                   int lduvw) -> void {
 
   // store coordinates
   gpu::check_status(
-      gpu::memcpy_async(uvwX_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwX,
+      gpu::memcpy_async(uvwX_.get() + inputCount_ * nAntenna_ * nAntenna_, uvw,
                         sizeof(T) * nAntenna_ * nAntenna_,
                         gpu::flag::MemcpyDeviceToDevice, ctx_->gpu_stream()));
   gpu::check_status(
-      gpu::memcpy_async(uvwY_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwY,
-                        sizeof(T) * nAntenna_ * nAntenna_,
+      gpu::memcpy_async(uvwY_.get() + inputCount_ * nAntenna_ * nAntenna_,
+                        uvw + lduvw, sizeof(T) * nAntenna_ * nAntenna_,
                         gpu::flag::MemcpyDeviceToDevice, ctx_->gpu_stream()));
   gpu::check_status(
-      gpu::memcpy_async(uvwZ_.get() + inputCount_ * nAntenna_ * nAntenna_, uvwZ,
-                        sizeof(T) * nAntenna_ * nAntenna_,
+      gpu::memcpy_async(uvwZ_.get() + inputCount_ * nAntenna_ * nAntenna_,
+                        uvw + 2 * lduvw, sizeof(T) * nAntenna_ * nAntenna_,
                         gpu::flag::MemcpyDeviceToDevice, ctx_->gpu_stream()));
 
   auto v = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
