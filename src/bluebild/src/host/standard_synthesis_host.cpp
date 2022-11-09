@@ -89,26 +89,31 @@ auto StandardSynthesisHost<T>::collect(
 
 
   T alpha = 2.0 * M_PI / wl;
-  gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_,
-          xyzCentered.get(), nAntenna_, pixelX_.get(), pixelY_.get(),
-          pixelZ_.get(), unlayeredStats.get(), nPixel_);
 
-  // cluster eigenvalues / vectors based on invervals
-  for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
-    apply_filter(filter_.get()[idxFilter], nEig, d.get(), dFiltered.get());
-    for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
-      std::size_t start, size;
-      std::tie(start, size) = find_interval_indices<T>(
-          nEig, d.get(), intervals[idxInt * ldIntervals],
-          intervals[idxInt * ldIntervals + 1]);
+#pragma omp parallel
+  {
+    gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_,
+            xyzCentered.get(), nAntenna_, pixelX_.get(), pixelY_.get(),
+            pixelZ_.get(), unlayeredStats.get(), nPixel_);
 
-      auto imgCurrent =
-          img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
-      for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
-        const auto scale = dFiltered.get()[idxEig];
-        auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
-        for (std::size_t idxPix = 0; idxPix < nPixel_; ++idxPix) {
-          imgCurrent[idxPix] += scale * unlayeredStatsCurrent[idxPix];
+    // cluster eigenvalues / vectors based on invervals
+    for (std::size_t idxFilter = 0; idxFilter < nFilter_; ++idxFilter) {
+      apply_filter(filter_.get()[idxFilter], nEig, d.get(), dFiltered.get());
+      for (std::size_t idxInt = 0; idxInt < nIntervals_; ++idxInt) {
+        std::size_t start, size;
+        std::tie(start, size) = find_interval_indices<T>(
+            nEig, d.get(), intervals[idxInt * ldIntervals],
+            intervals[idxInt * ldIntervals + 1]);
+
+        auto imgCurrent =
+            img_.get() + (idxFilter * nIntervals_ + idxInt) * nPixel_;
+        for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
+          const auto scale = dFiltered.get()[idxEig];
+          auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
+#pragma omp for schedule(static) nowait
+          for (std::size_t idxPix = 0; idxPix < nPixel_; ++idxPix) {
+            imgCurrent[idxPix] += scale * unlayeredStatsCurrent[idxPix];
+          }
         }
       }
     }

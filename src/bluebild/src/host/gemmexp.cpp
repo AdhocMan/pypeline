@@ -17,7 +17,7 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
   T sinValue = 0;
   T cosValue = 0;
 
-#pragma omp parallel for
+#pragma omp for schedule(static)
   for (std::size_t idxPix = 0; idxPix < nPixel; ++idxPix) {
     const auto pX = pixelX[idxPix];
     const auto pY = pixelY[idxPix];
