@@ -18,12 +18,17 @@ namespace py = pybind11;
 // Helper
 namespace {
 template <typename TARGET, typename SOURCE,
-          typename = std::enable_if_t<
-              std::is_integral_v<TARGET> && std::is_integral_v<SOURCE> &&
-              std::is_signed_v<TARGET> && std::is_signed_v<TARGET>>>
+          typename = std::enable_if_t<std::is_integral_v<TARGET> &&
+                                      std::is_integral_v<SOURCE> &&
+                                      !std::is_signed_v<TARGET>>>
 inline auto safe_cast(SOURCE s) {
-  if (s < std::numeric_limits<TARGET>::min() ||
-      s > std::numeric_limits<TARGET>::max())
+  if constexpr (std::is_signed_v<SOURCE>) {
+    if (s < 0)
+      throw std::underflow_error(
+          "Integer underflow due to input size or stride being negative.");
+  }
+
+  if (s > std::numeric_limits<TARGET>::max())
     throw std::overflow_error("Integer overflow due to input size or stride.");
   return static_cast<TARGET>(s);
 }
@@ -60,8 +65,8 @@ auto check_3d_array(const py::array_t<T, STYLE> &a,
     throw InvalidParameterError();
 }
 
-
-auto string_to_processing_unit(const std::string& pu) -> BluebildProcessingUnit {
+auto string_to_processing_unit(const std::string &pu)
+    -> BluebildProcessingUnit {
   if (pu == "CPU" || pu == "cpu")
     return BLUEBILD_PU_CPU;
   if (pu == "GPU" || pu == "gpu")
@@ -72,7 +77,7 @@ auto string_to_processing_unit(const std::string& pu) -> BluebildProcessingUnit 
   throw InvalidParameterError();
 }
 
-auto string_to_filter(const std::string& f) -> BluebildFilter {
+auto string_to_filter(const std::string &f) -> BluebildFilter {
   if (f == "LSQ" || f == "lsq")
     return BLUEBILD_FILTER_LSQ;
   if (f == "STD" || f == "std")
@@ -96,7 +101,7 @@ auto processing_unit_to_string(BluebildProcessingUnit pu) -> std::string {
   throw InvalidParameterError();
 }
 
-auto create_context(const std::string& pu) -> Context {
+auto create_context(const std::string &pu) -> Context {
   return Context(string_to_processing_unit(pu));
 }
 
@@ -111,38 +116,42 @@ auto call_gram_matrix(Context &ctx,
   auto g = py::array_t<std::complex<T>, py::array::f_style>(
       {w.shape(1), w.shape(1)});
 
-  gram_matrix(ctx, safe_cast<int>(w.shape(0)), safe_cast<int>(w.shape(1)),
-              w.data(0), safe_cast<int>(w.strides(1) / w.itemsize()),
-              xyz.data(0), safe_cast<int>(xyz.strides(1) / xyz.itemsize()), wl,
-              g.mutable_data(0), safe_cast<int>(g.strides(1) / g.itemsize()));
+  gram_matrix(ctx, safe_cast<std::size_t>(w.shape(0)),
+              safe_cast<std::size_t>(w.shape(1)), w.data(0),
+              safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
+              safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()), wl,
+              g.mutable_data(0),
+              safe_cast<std::size_t>(g.strides(1) / g.itemsize()));
 
   return g;
 }
 
 template <typename T>
 auto call_sensitivity_field_data(
-    Context &ctx, T wl, long nEig,
+    Context &ctx, T wl, std::size_t nEig,
     const py::array_t<T, py::array::f_style> &xyz,
     const py::array_t<std::complex<T>, py::array::f_style> &w) {
   check_2d_array(w);
   check_2d_array(xyz, {w.shape(0), 3});
 
-  auto v = py::array_t<std::complex<T>, py::array::f_style>({w.shape(1), nEig});
+  auto v = py::array_t<std::complex<T>, py::array::f_style>(
+      {w.shape(1), static_cast<long>(nEig)});
   auto d = py::array_t<T>(nEig);
 
   sensitivity_field_data(
-      ctx, wl, safe_cast<int>(w.shape(0)), safe_cast<int>(w.shape(1)),
-      safe_cast<int>(nEig), w.data(0),
-      safe_cast<int>(w.strides(1) / w.itemsize()), xyz.data(0),
-      safe_cast<int>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
-      v.mutable_data(0), safe_cast<int>(v.strides(1) / v.itemsize()));
+      ctx, wl, safe_cast<std::size_t>(w.shape(0)),
+      safe_cast<std::size_t>(w.shape(1)), safe_cast<std::size_t>(nEig),
+      w.data(0), safe_cast<std::size_t>(w.strides(1) / w.itemsize()),
+      xyz.data(0), safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()),
+      d.mutable_data(0), v.mutable_data(0),
+      safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
 
   return std::make_tuple(std::move(d), std::move(v));
 }
 
 template <typename T>
 auto call_intensity_field_data(
-    Context &ctx, T wl, long nEig,
+    Context &ctx, T wl, std::size_t nEig,
     const py::array_t<T, py::array::f_style> &xyz,
     const py::array_t<std::complex<T>, py::array::f_style> &w,
     const py::array_t<std::complex<T>, py::array::f_style> &s) {
@@ -150,16 +159,18 @@ auto call_intensity_field_data(
   check_2d_array(xyz, {w.shape(0), 3});
   check_2d_array(s, {w.shape(1), w.shape(1)});
 
-  auto v = py::array_t<std::complex<T>, py::array::f_style>({w.shape(1), nEig});
+  auto v = py::array_t<std::complex<T>, py::array::f_style>(
+      {w.shape(1), static_cast<long>(nEig)});
   auto d = py::array_t<T>(nEig);
 
   intensity_field_data(
-      ctx, wl, safe_cast<int>(w.shape(0)), safe_cast<int>(w.shape(1)),
-      safe_cast<int>(nEig), s.data(0),
-      safe_cast<int>(s.strides(1) / s.itemsize()), w.data(0),
-      safe_cast<int>(w.strides(1) / w.itemsize()), xyz.data(0),
-      safe_cast<int>(xyz.strides(1) / xyz.itemsize()), d.mutable_data(0),
-      v.mutable_data(0), safe_cast<int>(v.strides(1) / v.itemsize()));
+      ctx, wl, safe_cast<std::size_t>(w.shape(0)),
+      safe_cast<std::size_t>(w.shape(1)), safe_cast<std::size_t>(nEig),
+      s.data(0), safe_cast<std::size_t>(s.strides(1) / s.itemsize()), w.data(0),
+      safe_cast<std::size_t>(w.strides(1) / w.itemsize()), xyz.data(0),
+      safe_cast<std::size_t>(xyz.strides(1) / xyz.itemsize()),
+      d.mutable_data(0), v.mutable_data(0),
+      safe_cast<std::size_t>(v.strides(1) / v.itemsize()));
 
   return std::make_tuple(std::move(d), std::move(v));
 }
@@ -171,7 +182,7 @@ auto call_virtual_vis(
     const py::array_t<T, py::array::f_style> &d,
     const py::array_t<std::complex<T>, py::array::f_style> &v,
     std::optional<py::array_t<std::complex<T>, py::array::f_style>> w) {
-  if(w)
+  if (w)
     check_2d_array(w.value());
   check_1d_array(filter);
   check_2d_array(intervals, {0, 2});
@@ -185,16 +196,18 @@ auto call_virtual_vis(
   // workaround to match current style in python implementation:
   // use row major ordering and transpose inner matrices afterwards
   auto virtualVis = py::array_t<std::complex<T>, py::array::c_style>(
-      {filter.size(), intervals.shape(0), nAntenna, nAntenna});
+      {filter.size(), intervals.shape(0), static_cast<long>(nAntenna),
+       static_cast<long>(nAntenna)});
 
   virtual_vis<T>(
-      ctx, safe_cast<int>(filter.size()), filter.data(0),
-      safe_cast<int>(intervals.size() / 2), intervals.data(0),
-      safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
-      safe_cast<int>(nEig), d.data(0), safe_cast<int>(nAntenna), v.data(0),
-      safe_cast<int>(v.strides(1) / v.itemsize()), safe_cast<int>(nBeam),
-      w ? w.value().data(0) : nullptr,
-      w ? safe_cast<int>(w.value().strides(1) / w.value().itemsize()) : 0,
+      ctx, safe_cast<std::size_t>(filter.size()), filter.data(0),
+      safe_cast<std::size_t>(intervals.size() / 2), intervals.data(0),
+      safe_cast<std::size_t>(intervals.strides(0) / intervals.itemsize()),
+      safe_cast<std::size_t>(nEig), d.data(0), safe_cast<std::size_t>(nAntenna),
+      v.data(0), safe_cast<std::size_t>(v.strides(1) / v.itemsize()),
+      safe_cast<std::size_t>(nBeam), w ? w.value().data(0) : nullptr,
+      w ? safe_cast<std::size_t>(w.value().strides(1) / w.value().itemsize())
+        : 0,
       virtualVis.mutable_data(0), virtualVis.strides(0) / virtualVis.itemsize(),
       virtualVis.strides(1) / virtualVis.itemsize(),
       virtualVis.strides(2) / virtualVis.itemsize());
@@ -218,15 +231,16 @@ auto call_virtual_vis(
 
 struct Nufft3d3Dispatcher {
 
-  Nufft3d3Dispatcher(const Context &ctx, int iflag, float tol, int numTrans,
+  Nufft3d3Dispatcher(const Context &ctx, int iflag, float tol,
+                     std::size_t numTrans,
                      const py::array_t<float, pybind11::array::f_style> &x,
                      const py::array_t<float, pybind11::array::f_style> &y,
                      const py::array_t<float, pybind11::array::f_style> &z,
                      const py::array_t<float, pybind11::array::f_style> &s,
                      const py::array_t<float, pybind11::array::f_style> &t,
                      const py::array_t<float, pybind11::array::f_style> &u)
-      : m_(safe_cast<int>(x.shape(0))), n_(safe_cast<int>(s.shape(0))),
-        numTrans_(numTrans) {
+      : m_(safe_cast<std::size_t>(x.shape(0))),
+        n_(safe_cast<std::size_t>(s.shape(0))), numTrans_(numTrans) {
     check_1d_array(x);
     check_1d_array(y, x.shape(0));
     check_1d_array(z, x.shape(0));
@@ -237,14 +251,15 @@ struct Nufft3d3Dispatcher {
                       z.data(0), n_, s.data(0), t.data(0), u.data(0));
   }
 
-  Nufft3d3Dispatcher(const Context &ctx, int iflag, double tol, int numTrans,
+  Nufft3d3Dispatcher(const Context &ctx, int iflag, double tol,
+                     std::size_t numTrans,
                      const py::array_t<double, pybind11::array::f_style> &x,
                      const py::array_t<double, pybind11::array::f_style> &y,
                      const py::array_t<double, pybind11::array::f_style> &z,
                      const py::array_t<double, pybind11::array::f_style> &s,
                      const py::array_t<double, pybind11::array::f_style> &t,
                      const py::array_t<double, pybind11::array::f_style> &u)
-      : m_(safe_cast<int>(x.shape(0))), n_(s.shape(0)),
+      : m_(safe_cast<std::size_t>(x.shape(0))), n_(s.shape(0)),
         numTrans_(numTrans) {
     check_1d_array(x);
     check_1d_array(y, x.shape(0));
@@ -272,7 +287,7 @@ struct Nufft3d3Dispatcher {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, Nufft3d3f>) {
             py::array_t<std::complex<float>, py::array::f_style> cjArray(
-                cj.reshape({m_ * numTrans_}));
+                cj.reshape({static_cast<long>(m_ * numTrans_)}));
             check_1d_array(cjArray, m_);
             // use c_style 1d output, to allow for reshaping afterwards with
             // numTrans_ as first dimension
@@ -282,11 +297,12 @@ struct Nufft3d3Dispatcher {
             std::get<Nufft3d3f>(plan_).execute(cjArray.data(0),
                                                fkArray.mutable_data(0));
 
-            if (numTrans_ > 1)  fkArray = fkArray.reshape({numTrans_, n_});
+            if (numTrans_ > 1)
+              fkArray = fkArray.reshape({numTrans_, n_});
             return fkArray;
           } else if constexpr (std::is_same_v<T, Nufft3d3>) {
             py::array_t<std::complex<double>, py::array::f_style> cjArray(
-                cj.reshape({m_ * numTrans_}));
+                cj.reshape({static_cast<long>(m_ * numTrans_)}));
             check_1d_array(cjArray, m_);
             // use c_style 1d output, to allow for reshaping afterwards with
             // numTrans_ as first dimension
@@ -296,7 +312,8 @@ struct Nufft3d3Dispatcher {
             std::get<Nufft3d3>(plan_).execute(cjArray.data(0),
                                               fkArray.mutable_data(0));
 
-            if (numTrans_ > 1)  fkArray = fkArray.reshape({numTrans_, n_});
+            if (numTrans_ > 1)
+              fkArray = fkArray.reshape({numTrans_, n_});
             return fkArray;
           } else {
             throw InternalError();
@@ -306,17 +323,18 @@ struct Nufft3d3Dispatcher {
         plan_);
   }
 
-  int m_, n_, numTrans_;
+  std::size_t m_, n_, numTrans_;
   std::variant<std::monostate, Nufft3d3f, Nufft3d3> plan_;
 };
 
 struct StandardSynthesisDispatcher {
 
-  StandardSynthesisDispatcher(
-      Context &ctx, int nAntenna, int nBeam, int nIntervals,
-      const std::vector<std::string> &filter,
-      const py::array &pixelX, const py::array &pixelY, const py::array &pixelZ,
-      const std::string &precision)
+  StandardSynthesisDispatcher(Context &ctx, std::size_t nAntenna,
+                              std::size_t nBeam, std::size_t nIntervals,
+                              const std::vector<std::string> &filter,
+                              const py::array &pixelX, const py::array &pixelY,
+                              const py::array &pixelZ,
+                              const std::string &precision)
       : nIntervals_(nIntervals), nPixel_(pixelX.shape(0)) {
     std::vector<BluebildFilter> filterEnums;
     for (const auto &f : filter) {
@@ -365,7 +383,7 @@ struct StandardSynthesisDispatcher {
   StandardSynthesisDispatcher &
   operator=(const StandardSynthesisDispatcher &) = delete;
 
-  auto collect(int nEig, double wl, pybind11::array intervals,
+  auto collect(std::size_t nEig, double wl, pybind11::array intervals,
                pybind11::array w, pybind11::array xyz,
                std::optional<pybind11::array> s) -> void {
     std::visit(
@@ -375,8 +393,9 @@ struct StandardSynthesisDispatcher {
                         std::is_same_v<variantType,
                                        StandardSynthesis<double>>) {
             using T = typename variantType::valueType;
-            py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
-            check_2d_array(intervalsArray, {nIntervals_, 2});
+            py::array_t<T, py::array::c_style | py::array::forcecast>
+                intervalsArray(intervals);
+            check_2d_array(intervalsArray, {static_cast<long>(nIntervals_), 2});
             py::array_t<std::complex<T>,
                         py::array::f_style | py::array::forcecast>
                 wArray(w);
@@ -397,15 +416,17 @@ struct StandardSynthesisDispatcher {
             }
             std::get<StandardSynthesis<T>>(plan_).collect(
                 nEig, wl, intervalsArray.data(0),
-                safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
+                safe_cast<std::size_t>(intervals.strides(0) /
+                                       intervals.itemsize()),
                 s ? sArray.value().data(0) : nullptr,
-                s ? safe_cast<int>(sArray.value().strides(1) /
-                                   sArray.value().itemsize())
+                s ? safe_cast<std::size_t>(sArray.value().strides(1) /
+                                           sArray.value().itemsize())
                   : 0,
                 wArray.data(0),
-                safe_cast<int>(wArray.strides(1) / wArray.itemsize()),
+                safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
                 xyzArray.data(0),
-                safe_cast<int>(xyzArray.strides(1) / xyzArray.itemsize()));
+                safe_cast<std::size_t>(xyzArray.strides(1) /
+                                       xyzArray.itemsize()));
 
           } else {
             throw InternalError();
@@ -414,7 +435,7 @@ struct StandardSynthesisDispatcher {
         plan_);
   }
 
-  auto get(const std::string& fString) -> py::array {
+  auto get(const std::string &fString) -> py::array {
     const auto f = string_to_filter(fString);
     return std::visit(
         [&](auto &&arg) -> pybind11::array {
@@ -423,13 +444,13 @@ struct StandardSynthesisDispatcher {
             py::array_t<double> out({nIntervals_, nPixel_});
             std::get<StandardSynthesis<double>>(plan_).get(
                 f, out.mutable_data(0),
-                safe_cast<int>(out.strides(0) / out.itemsize()));
+                safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else if constexpr (std::is_same_v<T, StandardSynthesis<float>>) {
             py::array_t<float> out({nIntervals_, nPixel_});
             std::get<StandardSynthesis<float>>(plan_).get(
                 f, out.mutable_data(0),
-                safe_cast<int>(out.strides(0) / out.itemsize()));
+                safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else {
             throw InternalError();
@@ -442,18 +463,17 @@ struct StandardSynthesisDispatcher {
   std::variant<std::monostate, StandardSynthesis<float>,
                StandardSynthesis<double>>
       plan_;
-  int nIntervals_, nPixel_;
+  std::size_t nIntervals_, nPixel_;
 };
-
-
 
 struct NufftSynthesisDispatcher {
 
-  NufftSynthesisDispatcher(
-      Context &ctx, int nAntenna, int nBeam, int nIntervals,
-      const std::vector<std::string> &filter,
-      const py::array &lmnX, const py::array &lmnY, const py::array &lmnZ,
-      const std::string &precision, double tol)
+  NufftSynthesisDispatcher(Context &ctx, std::size_t nAntenna,
+                           std::size_t nBeam, std::size_t nIntervals,
+                           const std::vector<std::string> &filter,
+                           const py::array &lmnX, const py::array &lmnY,
+                           const py::array &lmnZ, const std::string &precision,
+                           double tol)
       : nIntervals_(nIntervals), nPixel_(lmnX.shape(0)) {
     std::vector<BluebildFilter> filterEnums;
     for (const auto &f : filter) {
@@ -496,24 +516,23 @@ struct NufftSynthesisDispatcher {
 
   NufftSynthesisDispatcher(const NufftSynthesisDispatcher &) = delete;
 
-  NufftSynthesisDispatcher &
-  operator=(NufftSynthesisDispatcher &&) = default;
+  NufftSynthesisDispatcher &operator=(NufftSynthesisDispatcher &&) = default;
 
   NufftSynthesisDispatcher &
   operator=(const NufftSynthesisDispatcher &) = delete;
 
-  auto collect(int nEig, double wl, pybind11::array intervals,
+  auto collect(std::size_t nEig, double wl, pybind11::array intervals,
                pybind11::array w, pybind11::array xyz, pybind11::array uvw,
                std::optional<pybind11::array> s) -> void {
     std::visit(
         [&](auto &&arg) -> void {
           using variantType = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<variantType, NufftSynthesis<float>> ||
-                        std::is_same_v<variantType,
-                                       NufftSynthesis<double>>) {
+                        std::is_same_v<variantType, NufftSynthesis<double>>) {
             using T = typename variantType::valueType;
-            py::array_t<T, py::array::c_style | py::array::forcecast> intervalsArray(intervals);
-            check_2d_array(intervalsArray, {nIntervals_, 2});
+            py::array_t<T, py::array::c_style | py::array::forcecast>
+                intervalsArray(intervals);
+            check_2d_array(intervalsArray, {static_cast<long>(nIntervals_), 2});
             py::array_t<std::complex<T>,
                         py::array::f_style | py::array::forcecast>
                 wArray(w);
@@ -538,17 +557,20 @@ struct NufftSynthesisDispatcher {
             }
             std::get<NufftSynthesis<T>>(plan_).collect(
                 nEig, wl, intervalsArray.data(0),
-                safe_cast<int>(intervals.strides(0) / intervals.itemsize()),
+                safe_cast<std::size_t>(intervals.strides(0) /
+                                       intervals.itemsize()),
                 s ? sArray.value().data(0) : nullptr,
-                s ? safe_cast<int>(sArray.value().strides(1) /
-                                   sArray.value().itemsize())
+                s ? safe_cast<std::size_t>(sArray.value().strides(1) /
+                                           sArray.value().itemsize())
                   : 0,
                 wArray.data(0),
-                safe_cast<int>(wArray.strides(1) / wArray.itemsize()),
+                safe_cast<std::size_t>(wArray.strides(1) / wArray.itemsize()),
                 xyzArray.data(0),
-                safe_cast<int>(xyzArray.strides(1) / xyzArray.itemsize()),
+                safe_cast<std::size_t>(xyzArray.strides(1) /
+                                       xyzArray.itemsize()),
                 uvwArray.data(0),
-                safe_cast<int>(uvwArray.strides(1) / uvwArray.itemsize()));
+                safe_cast<std::size_t>(uvwArray.strides(1) /
+                                       uvwArray.itemsize()));
 
           } else {
             throw InternalError();
@@ -557,7 +579,7 @@ struct NufftSynthesisDispatcher {
         plan_);
   }
 
-  auto get(const std::string& fString) -> py::array {
+  auto get(const std::string &fString) -> py::array {
     const auto f = string_to_filter(fString);
     return std::visit(
         [&](auto &&arg) -> pybind11::array {
@@ -566,13 +588,13 @@ struct NufftSynthesisDispatcher {
             py::array_t<double> out({nIntervals_, nPixel_});
             std::get<NufftSynthesis<double>>(plan_).get(
                 f, out.mutable_data(0),
-                safe_cast<int>(out.strides(0) / out.itemsize()));
+                safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else if constexpr (std::is_same_v<T, NufftSynthesis<float>>) {
             py::array_t<float> out({nIntervals_, nPixel_});
             std::get<NufftSynthesis<float>>(plan_).get(
                 f, out.mutable_data(0),
-                safe_cast<int>(out.strides(0) / out.itemsize()));
+                safe_cast<std::size_t>(out.strides(0) / out.itemsize()));
             return out;
           } else {
             throw InternalError();
@@ -582,15 +604,10 @@ struct NufftSynthesisDispatcher {
         plan_);
   }
 
-  std::variant<std::monostate, NufftSynthesis<float>,
-               NufftSynthesis<double>>
+  std::variant<std::monostate, NufftSynthesis<float>, NufftSynthesis<double>>
       plan_;
-  int nIntervals_, nPixel_;
+  std::size_t nIntervals_, nPixel_;
 };
-
-
-
-
 
 } // namespace
 
@@ -633,7 +650,7 @@ PYBIND11_MODULE(pybluebild, m) {
           pybind11::arg("XYZ"), pybind11::arg("W"), pybind11::arg("wl"))
       .def(
           "sensitivity_field_data",
-          [](Context &ctx, long nEig,
+          [](Context &ctx, std::size_t nEig,
              const py::array_t<float, pybind11::array::f_style> &xyz,
              const py::array_t<std::complex<float>, pybind11::array::f_style>
                  &w,
@@ -644,7 +661,7 @@ PYBIND11_MODULE(pybluebild, m) {
           pybind11::arg("wl"))
       .def(
           "sensitivity_field_data",
-          [](Context &ctx, long nEig,
+          [](Context &ctx, std::size_t nEig,
              const py::array_t<double, pybind11::array::f_style> &xyz,
              const py::array_t<std::complex<double>, pybind11::array::f_style>
                  &w,
@@ -655,7 +672,7 @@ PYBIND11_MODULE(pybluebild, m) {
           pybind11::arg("wl"))
       .def(
           "intensity_field_data",
-          [](Context &ctx, long nEig,
+          [](Context &ctx, std::size_t nEig,
              const py::array_t<float, pybind11::array::f_style> &xyz,
              const py::array_t<std::complex<float>, pybind11::array::f_style>
                  &w,
@@ -668,7 +685,7 @@ PYBIND11_MODULE(pybluebild, m) {
           pybind11::arg("wl"), pybind11::arg("S"))
       .def(
           "intensity_field_data",
-          [](Context &ctx, long nEig,
+          [](Context &ctx, std::size_t nEig,
              const py::array_t<double, pybind11::array::f_style> &xyz,
              const py::array_t<std::complex<double>, pybind11::array::f_style>
                  &w,
@@ -709,7 +726,7 @@ PYBIND11_MODULE(pybluebild, m) {
 
   pybind11::class_<Nufft3d3Dispatcher>(m, "Nufft3d3")
       .def(pybind11::init<
-               const Context &, int, float, int,
+               const Context &, int, float, std::size_t,
                const py::array_t<float, pybind11::array::f_style> &,
                const py::array_t<float, pybind11::array::f_style> &,
                const py::array_t<float, pybind11::array::f_style> &,
@@ -721,7 +738,7 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("z"), pybind11::arg("s"), pybind11::arg("t"),
            pybind11::arg("u"))
       .def(pybind11::init<
-               const Context &, int, double, int,
+               const Context &, int, double, std::size_t,
                const py::array_t<double, pybind11::array::f_style> &,
                const py::array_t<double, pybind11::array::f_style> &,
                const py::array_t<double, pybind11::array::f_style> &,
@@ -735,7 +752,7 @@ PYBIND11_MODULE(pybluebild, m) {
       .def("execute", &Nufft3d3Dispatcher::execute, pybind11::arg("cj"));
 
   pybind11::class_<NufftSynthesisDispatcher>(m, "NufftSynthesis")
-      .def(pybind11::init<Context &, int, int, int,
+      .def(pybind11::init<Context &, std::size_t, std::size_t, std::size_t,
                           const std::vector<std::string> &, const py::array &,
                           const py::array &, const py::array &,
                           const std::string &, double>(),
@@ -751,7 +768,7 @@ PYBIND11_MODULE(pybluebild, m) {
       .def("get", &NufftSynthesisDispatcher::get, pybind11::arg("f"));
 
   pybind11::class_<StandardSynthesisDispatcher>(m, "StandardSynthesis")
-      .def(pybind11::init<Context &, int, int, int,
+      .def(pybind11::init<Context &, std::size_t, std::size_t, std::size_t,
                           const std::vector<std::string> &, const py::array &,
                           const py::array &, const py::array &,
                           const std::string &>(),
@@ -760,11 +777,9 @@ PYBIND11_MODULE(pybluebild, m) {
            pybind11::arg("filter"), pybind11::arg("lmn_x"),
            pybind11::arg("lmn_y"), pybind11::arg("lmn_y"),
            pybind11::arg("precision"))
-      .def(
-          "collect", &StandardSynthesisDispatcher::collect,
-          pybind11::arg("nEig"), pybind11::arg("wl"),
-          pybind11::arg("intervals"), pybind11::arg("w"), pybind11::arg("xyz"),
-          pybind11::arg("s") =
-              std::optional<pybind11::array>())
+      .def("collect", &StandardSynthesisDispatcher::collect,
+           pybind11::arg("nEig"), pybind11::arg("wl"),
+           pybind11::arg("intervals"), pybind11::arg("w"), pybind11::arg("xyz"),
+           pybind11::arg("s") = std::optional<pybind11::array>())
       .def("get", &StandardSynthesisDispatcher::get, pybind11::arg("f"));
 }
