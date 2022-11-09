@@ -1,8 +1,9 @@
 #include "host/gemmexp.hpp"
+#include "host/omp_definitions.hpp"
 #include "marla_sincos.hpp"
+#include <cmath>
 #include <complex>
 #include <iostream>
-#include <cmath>
 
 namespace bluebild {
 
@@ -17,7 +18,7 @@ auto gemmexp(std::size_t nEig, std::size_t nPixel, std::size_t nAntenna,
   T sinValue = 0;
   T cosValue = 0;
 
-#pragma omp for schedule(static)
+  BLUEBILD_OMP_PRAGMA("omp for schedule(static)")
   for (std::size_t idxPix = 0; idxPix < nPixel; ++idxPix) {
     const auto pX = pixelX[idxPix];
     const auto pY = pixelY[idxPix];

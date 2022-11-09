@@ -14,6 +14,7 @@
 #include "memory/allocator.hpp"
 #include "memory/buffer.hpp"
 #include "host/gemmexp.hpp"
+#include "host/omp_definitions.hpp"
 #include "util.hpp"
 
 
@@ -90,8 +91,7 @@ auto StandardSynthesisHost<T>::collect(
 
   T alpha = 2.0 * M_PI / wl;
 
-#pragma omp parallel
-  {
+  BLUEBILD_OMP_PRAGMA("omp parallel") {
     gemmexp(nEig, nPixel_, nAntenna_, alpha, vUnbeam.get(), nAntenna_,
             xyzCentered.get(), nAntenna_, pixelX_.get(), pixelY_.get(),
             pixelZ_.get(), unlayeredStats.get(), nPixel_);
@@ -110,7 +110,8 @@ auto StandardSynthesisHost<T>::collect(
         for (std::size_t idxEig = start; idxEig < start + size; ++idxEig) {
           const auto scale = dFiltered.get()[idxEig];
           auto unlayeredStatsCurrent = unlayeredStats.get() + nPixel_ * idxEig;
-#pragma omp for schedule(static) nowait
+
+          BLUEBILD_OMP_PRAGMA("omp for schedule(static) nowait")
           for (std::size_t idxPix = 0; idxPix < nPixel_; ++idxPix) {
             imgCurrent[idxPix] += scale * unlayeredStatsCurrent[idxPix];
           }
