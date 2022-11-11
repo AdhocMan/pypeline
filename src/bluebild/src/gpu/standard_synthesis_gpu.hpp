@@ -19,7 +19,7 @@ public:
   auto collect(std::size_t nEig, T wl, const T *intervalsHost,
                std::size_t ldIntervals, const gpu::ComplexType<T> *s,
                std::size_t lds, const gpu::ComplexType<T> *w, std::size_t ldw,
-               const T *xyz, std::size_t ldxyz) -> void;
+               T *xyz, std::size_t ldxyz) -> void;
 
   auto get(BluebildFilter f, T *outHostOrDevice, std::size_t ld) -> void;
 

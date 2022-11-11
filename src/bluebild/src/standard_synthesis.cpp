@@ -80,8 +80,6 @@ template <typename T> struct StandardSynthesisInternal {
       auto ldsDevice = lds;
       auto wDevice = reinterpret_cast<const gpu::ComplexType<T> *>(w);
       auto ldwDevice = ldw;
-      auto xyzDevice = xyz;
-      auto ldxyzDevice = ldxyz;
 
       if (s && !is_device_ptr(w)) {
         sBuffer = create_buffer<gpu::ComplexType<T>>(ctx_->allocators().gpu(),
@@ -105,15 +103,15 @@ template <typename T> struct StandardSynthesisInternal {
             nAntenna_ * sizeof(gpu::ComplexType<T>), nBeam_,
             gpu::flag::MemcpyHostToDevice, ctx_->gpu_stream()));
       }
-      if (!is_device_ptr(xyz)) {
-        xyzBuffer = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_);
-        ldxyzDevice = nAntenna_;
-        xyzDevice = xyzBuffer.get();
-        gpu::check_status(gpu::memcpy_2d_async(
-            xyzBuffer.get(), nAntenna_ * sizeof(T), xyz, ldxyz * sizeof(T),
-            nAntenna_ * sizeof(T), 3, gpu::flag::MemcpyHostToDevice,
-            ctx_->gpu_stream()));
-      }
+
+      // Always copy xyz, even when on device, since it will be overwritten
+      xyzBuffer = create_buffer<T>(ctx_->allocators().gpu(), 3 * nAntenna_);
+      auto ldxyzDevice = nAntenna_;
+      auto xyzDevice = xyzBuffer.get();
+      gpu::check_status(
+          gpu::memcpy_2d_async(xyzBuffer.get(), nAntenna_ * sizeof(T), xyz,
+                               ldxyz * sizeof(T), nAntenna_ * sizeof(T), 3,
+                               gpu::flag::MemcpyDefault, ctx_->gpu_stream()));
 
       // sync before call, such that host memory can be safely discarded by
       // caller, while computation is continued asynchronously
