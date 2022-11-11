@@ -21,16 +21,14 @@ import scipy.constants as constants
 import sys
 
 import pypeline.phased_array.beamforming as beamforming
-import pypeline.phased_array.bluebild.data_processor as bb_dp
 import pypeline.phased_array.bluebild.gram as bb_gr
-import pypeline.phased_array.bluebild.imager.spatial_domain as bb_sd
 import pypeline.phased_array.bluebild.parameter_estimator as bb_pe
 import pypeline.phased_array.data_gen.source as source
 import pypeline.phased_array.data_gen.statistics as statistics
 import pypeline.phased_array.instrument as instrument
 import bluebild
 
-ctx = bluebild.Context("CPU")
+ctx = bluebild.Context("AUTO")
 
 # Observation
 obs_start = atime.Time(56879.54171302732, scale="utc", format="mjd")
@@ -65,6 +63,11 @@ px_h = px_grid.shape[2]
 px_grid = px_grid.reshape(3,-1)
 px_grid = px_grid / np.linalg.norm(px_grid, axis=0)
 
+print("Image dimension = ", px_w, ", ", px_h)
+print("precision = ", precision)
+print("N_station = ", N_station)
+print("N_antenna = ", N_antenna)
+print("Proc = ", ctx.processing_unit())
 
 ### Intensity Field ===========================================================
 # Parameter Estimation
@@ -76,12 +79,10 @@ for t in ProgressBar(time[::200]):
     G = gram(XYZ, W, wl)
 
     I_est.collect(S, G)
-N_eig, c_centroid = I_est.infer_parameters()
-intervals = bb_dp.centroid_to_intervals(c_centroid)
+N_eig, intervals = I_est.infer_parameters()
 
 
 # Imaging
-I_dp = bb_dp.IntensityFieldDataProcessorBlock(N_eig, c_centroid)
 imager = bluebild.StandardSynthesis(ctx, N_antenna, N_station, intervals.shape[0],
                     ["LSQ", "STD"], px_grid[0], px_grid[1], px_grid[2], precision)
 for t in ProgressBar(time[::25]):
@@ -90,8 +91,8 @@ for t in ProgressBar(time[::25]):
     S = vis(XYZ, W, wl)
     imager.collect(N_eig, wl, intervals, W.data, XYZ.data, S.data)
 
-I_lsq = imager.get("LSQ").reshape((intervals.shape[0],px_w,px_h))
-I_std = imager.get("STD").reshape((intervals.shape[0],px_w,px_h))
+I_lsq = imager.get("LSQ").reshape((-1,px_w,px_h))
+I_std = imager.get("STD").reshape((-1,px_w,px_h))
 
 ### Sensitivity Field =========================================================
 # Parameter Estimation
@@ -106,7 +107,6 @@ N_eig = S_est.infer_parameters()
 
 # Imaging
 intervals = np.array([[0, np.finfo('f').max]])
-S_dp = bb_dp.SensitivityFieldDataProcessorBlock(N_eig)
 intervals = np.array([[0, np.finfo('f').max]])
 imager = bluebild.StandardSynthesis(ctx, N_antenna, N_station, intervals.shape[0],
                            ["STD"], px_grid[0], px_grid[1], px_grid[2], precision)
@@ -114,10 +114,9 @@ imager = bluebild.StandardSynthesis(ctx, N_antenna, N_station, intervals.shape[0
 for t in ProgressBar(time[::25]):
     XYZ = dev(t)
     W = mb(XYZ, wl)
-
-    D, V = S_dp(XYZ, W, wl)
     imager.collect(N_eig, wl, intervals, W.data, XYZ.data)
-sensitivity_image = imager.get("STD").reshape((intervals.shape[0],px_w,px_h))
+
+sensitivity_image = imager.get("STD").reshape((-1,px_w,px_h))
 
 # Plot Results ================================================================
 fig, ax = plt.subplots(ncols=2)
