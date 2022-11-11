@@ -71,7 +71,7 @@ auto string_to_processing_unit(const std::string &pu)
     return BLUEBILD_PU_CPU;
   if (pu == "GPU" || pu == "gpu")
     return BLUEBILD_PU_GPU;
-  if (pu == "AUTO" && pu == "auto")
+  if (pu == "AUTO" || pu == "auto")
     return BLUEBILD_PU_AUTO;
 
   throw InvalidParameterError();
