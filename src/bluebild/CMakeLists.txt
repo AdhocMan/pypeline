@@ -210,7 +210,6 @@ list(APPEND BLUEBILD_INCLUDE_DIRS ${PROJECT_BINARY_DIR})
 add_subdirectory(src)
 
 if(BLUEBILD_PYTHON)
-    message(STATUS "BLUEBILD_PYTHON")
 	add_subdirectory(python)
 endif()
 
